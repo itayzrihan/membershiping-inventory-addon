@@ -92,6 +92,7 @@ class Membershiping_Inventory_Main {
     public $frontend;
     public $security;
     public $woocommerce_integration;
+    public $enhanced_woocommerce_integration;
     public $flag_awards;
     public $consumables;
     public $core_restriction_integration;
@@ -318,6 +319,11 @@ class Membershiping_Inventory_Main {
         
         // Initialize integrations
         $this->woocommerce_integration = new Membershiping_Inventory_WooCommerce_Integration();
+        
+        // Initialize enhanced WooCommerce integration (currency pricing, item-based pricing)
+        if (class_exists('Membershiping_Inventory_Enhanced_WooCommerce_Integration')) {
+            $this->enhanced_woocommerce_integration = new Membershiping_Inventory_Enhanced_WooCommerce_Integration();
+        }
         
         $this->frontend = new Membershiping_Inventory_Frontend();
         

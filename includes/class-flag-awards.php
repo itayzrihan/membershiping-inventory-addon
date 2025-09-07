@@ -23,6 +23,8 @@ class Membershiping_Inventory_Flag_Awards {
         $this->items = new Membershiping_Inventory_Items();
         
         $this->init_hooks();
+        
+        error_log('Membershiping Inventory Flag Awards: Class initialized and hooks added');
     }
     
     /**
@@ -34,8 +36,8 @@ class Membershiping_Inventory_Flag_Awards {
         add_action('woocommerce_order_status_processing', array($this, 'process_order_completion'), 10, 1);
         
         // Product configuration hooks
-        add_action('woocommerce_product_options_general_product_data', array($this, 'add_product_flag_fields'));
-        add_action('woocommerce_process_product_meta', array($this, 'save_product_flag_fields'));
+        add_action('woocommerce_product_options_general_product_data', array($this, 'add_product_flag_fields'), 25);
+        add_action('woocommerce_process_product_meta', array($this, 'save_product_flag_fields'), 25);
         
         // Admin meta boxes
         add_action('add_meta_boxes', array($this, 'add_product_meta_boxes'));
@@ -127,12 +129,48 @@ class Membershiping_Inventory_Flag_Awards {
      */
     private function award_flag_via_core($user_id, $flag_name, $quantity, $type, $order_id, $product_id) {
         // This integrates with Membershiping Core's flag system
+        
+        // First priority: Try the core's Membershiping_User_Flags class (most reliable)
+        if (class_exists('Membershiping_User_Flags')) {
+            $user_flags = new Membershiping_User_Flags();
+            
+            // Get flag by slug first (most reliable)
+            $flag = $user_flags->get_flag_by_slug($flag_name);
+            
+            if (!$flag) {
+                // Try to find by name if slug doesn't work
+                global $wpdb;
+                $flags_table = $wpdb->prefix . 'membershiping_user_flags';
+                $flag = $wpdb->get_row($wpdb->prepare(
+                    "SELECT * FROM {$flags_table} WHERE name = %s OR slug = %s LIMIT 1",
+                    $flag_name, sanitize_title($flag_name)
+                ));
+            }
+            
+            if ($flag) {
+                // For core integration, we assign the flag to the user
+                // The core plugin handles flag assignment, points, etc.
+                $assignment_result = $user_flags->assign_flag_to_user($user_id, $flag->id, get_current_user_id());
+                if ($assignment_result) {
+                    error_log("Membershiping Inventory: Successfully assigned flag '{$flag_name}' (ID: {$flag->id}) to user {$user_id} via core plugin");
+                    return true;
+                } else {
+                    error_log("Membershiping Inventory: Failed to assign flag '{$flag_name}' to user {$user_id} via core plugin");
+                }
+            } else {
+                error_log("Membershiping Inventory: Flag '{$flag_name}' not found in core plugin. Creating fallback flag award.");
+            }
+        }
+        
+        // Legacy support: Try global functions if they exist
         if (function_exists('membershiping_award_flag')) {
             membershiping_award_flag($user_id, $flag_name, $quantity, $type);
+            return true;
         } elseif (class_exists('Membershiping_Flags')) {
             $flags = new Membershiping_Flags();
             if (method_exists($flags, 'award_flag')) {
                 $flags->award_flag($user_id, $flag_name, $quantity, $type);
+                return true;
             }
         } elseif (function_exists('membershiping_set_user_flag')) {
             // Alternative function name
@@ -145,10 +183,13 @@ class Membershiping_Inventory_Flag_Awards {
                 $current = membershiping_get_user_flag($user_id, $flag_name) ?: 1;
                 membershiping_set_user_flag($user_id, $flag_name, $current * $quantity);
             }
-        } else {
-            // Fallback: use our own flag tracking
-            $this->store_flag_award($user_id, $flag_name, $quantity, $type, $order_id, $product_id);
+            return true;
         }
+        
+        // If no core integration method worked, use fallback
+        error_log("Membershiping Inventory: Core plugin integration not available. Using fallback flag storage for '{$flag_name}'.");
+        $this->store_flag_award($user_id, $flag_name, $quantity, $type, $order_id, $product_id);
+        return false;
         
         // Log individual flag award
         $this->security->log_security_event('flag_awarded', $user_id, array(
@@ -608,6 +649,8 @@ class Membershiping_Inventory_Flag_Awards {
      */
     public function add_product_flag_fields() {
         global $post;
+        
+        error_log('Membershiping Inventory: add_product_flag_fields called for post ID: ' . ($post ? $post->ID : 'unknown'));
         
         ?>
         <div class="options_group">
