@@ -1288,7 +1288,7 @@ class Membershiping_Inventory_Admin {
         echo '<th>' . __('Name', 'membershiping-inventory') . '</th>';
         echo '<th>' . __('Code', 'membershiping-inventory') . '</th>';
         echo '<th>' . __('Symbol', 'membershiping-inventory') . '</th>';
-        echo '<th>' . __('Type', 'membershiping-inventory') . '</th>';
+        echo '<th>' . __('Exchange Rate', 'membershiping-inventory') . '</th>';
         echo '<th>' . __('Status', 'membershiping-inventory') . '</th>';
         echo '<th>' . __('Created', 'membershiping-inventory') . '</th>';
         echo '<th>' . __('Actions', 'membershiping-inventory') . '</th>';
@@ -1301,9 +1301,9 @@ class Membershiping_Inventory_Admin {
                 echo '<tr>';
                 echo '<th scope="row" class="check-column"><input type="checkbox" name="currency_ids[]" value="' . $currency->id . '"></th>';
                 echo '<td><strong>' . esc_html($currency->name) . '</strong></td>';
-                echo '<td>' . esc_html($currency->code) . '</td>';
+                echo '<td>' . esc_html($currency->slug) . '</td>';
                 echo '<td>' . esc_html($currency->symbol) . '</td>';
-                echo '<td>' . esc_html(ucfirst($currency->type)) . '</td>';
+                echo '<td>' . esc_html($currency->exchange_rate) . '</td>';
                 echo '<td><span class="status-' . esc_attr($currency->status) . '">' . esc_html(ucfirst($currency->status)) . '</span></td>';
                 echo '<td>' . date('Y-m-d H:i', strtotime($currency->created_at)) . '</td>';
                 echo '<td>';
@@ -1332,28 +1332,28 @@ class Membershiping_Inventory_Admin {
         // Handle form submission
         if (isset($_POST['submit_currency']) && wp_verify_nonce($_POST['currency_nonce'], 'add_currency_nonce')) {
             $name = sanitize_text_field($_POST['currency_name']);
-            $code = sanitize_text_field($_POST['currency_code']);
+            $slug = sanitize_title($_POST['currency_code']); // Convert to slug format
             $symbol = sanitize_text_field($_POST['currency_symbol']);
-            $type = sanitize_text_field($_POST['currency_type']);
             $status = sanitize_text_field($_POST['currency_status']);
             $description = sanitize_textarea_field($_POST['currency_description']);
-            $metadata = sanitize_textarea_field($_POST['currency_metadata']);
+            $exchange_rate = floatval($_POST['currency_exchange_rate']) ?: 1.0;
+            $decimal_places = intval($_POST['currency_decimal_places']) ?: 2;
             
-            if ($name && $code) {
+            if ($name && $slug) {
                 $result = $wpdb->insert(
                     $table_name,
                     array(
                         'name' => $name,
-                        'code' => $code,
+                        'slug' => $slug,
                         'symbol' => $symbol,
-                        'type' => $type,
                         'status' => $status,
                         'description' => $description,
-                        'metadata' => $metadata,
+                        'exchange_rate' => $exchange_rate,
+                        'decimal_places' => $decimal_places,
                         'created_at' => current_time('mysql'),
                         'updated_at' => current_time('mysql')
                     ),
-                    array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+                    array('%s', '%s', '%s', '%s', '%s', '%f', '%d', '%s', '%s')
                 );
                 
                 if ($result) {
@@ -1387,16 +1387,13 @@ class Membershiping_Inventory_Admin {
         echo '</tr>';
         
         echo '<tr>';
-        echo '<th scope="row"><label for="currency_type">' . __('Currency Type', 'membershiping-inventory') . '</label></th>';
-        echo '<td>';
-        echo '<select id="currency_type" name="currency_type">';
-        echo '<option value="virtual">' . __('Virtual Currency', 'membershiping-inventory') . '</option>';
-        echo '<option value="premium">' . __('Premium Currency', 'membershiping-inventory') . '</option>';
-        echo '<option value="reward">' . __('Reward Currency', 'membershiping-inventory') . '</option>';
-        echo '<option value="fiat">' . __('Fiat Currency', 'membershiping-inventory') . '</option>';
-        echo '<option value="crypto">' . __('Cryptocurrency', 'membershiping-inventory') . '</option>';
-        echo '</select>';
-        echo '</td>';
+        echo '<th scope="row"><label for="currency_exchange_rate">' . __('Exchange Rate', 'membershiping-inventory') . '</label></th>';
+        echo '<td><input type="number" id="currency_exchange_rate" name="currency_exchange_rate" class="regular-text" step="0.0001" value="1.0000" min="0"><p class="description">' . __('Exchange rate relative to base currency (default: 1.0)', 'membershiping-inventory') . '</p></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="currency_decimal_places">' . __('Decimal Places', 'membershiping-inventory') . '</label></th>';
+        echo '<td><input type="number" id="currency_decimal_places" name="currency_decimal_places" class="small-text" value="2" min="0" max="8"><p class="description">' . __('Number of decimal places to display (0-8)', 'membershiping-inventory') . '</p></td>';
         echo '</tr>';
         
         echo '<tr>';
@@ -1412,11 +1409,6 @@ class Membershiping_Inventory_Admin {
         echo '<option value="inactive">' . __('Inactive', 'membershiping-inventory') . '</option>';
         echo '</select>';
         echo '</td>';
-        echo '</tr>';
-        
-        echo '<tr>';
-        echo '<th scope="row"><label for="currency_metadata">' . __('Metadata (JSON)', 'membershiping-inventory') . '</label></th>';
-        echo '<td><textarea id="currency_metadata" name="currency_metadata" class="large-text" rows="3" placeholder="' . __('Optional JSON metadata', 'membershiping-inventory') . '"></textarea></td>';
         echo '</tr>';
         
         echo '</table>';

@@ -34,36 +34,28 @@ add_action('before_woocommerce_init', function() {
 });
 
 // Define plugin constants
-define('MEMBERSHIPING_INVENTORY_VERSION', '1.0.0');
-define('MEMBERSHIPING_INVENTORY_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('MEMBERSHIPING_INVENTORY_URL', plugin_dir_url(__FILE__)); // Alias for compatibility
-define('MEMBERSHIPING_INVENTORY_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('MEMBERSHIPING_INVENTORY_PLUGIN_FILE', __FILE__);
-define('MEMBERSHIPING_INVENTORY_TEXT_DOMAIN', 'membershiping-inventory');
+if (!defined('MEMBERSHIPING_INVENTORY_VERSION')) {
+    define('MEMBERSHIPING_INVENTORY_VERSION', '1.0.0');
+}
+if (!defined('MEMBERSHIPING_INVENTORY_PLUGIN_URL')) {
+    define('MEMBERSHIPING_INVENTORY_PLUGIN_URL', plugin_dir_url(__FILE__));
+}
+if (!defined('MEMBERSHIPING_INVENTORY_URL')) {
+    define('MEMBERSHIPING_INVENTORY_URL', plugin_dir_url(__FILE__)); // Alias for compatibility
+}
+if (!defined('MEMBERSHIPING_INVENTORY_PLUGIN_PATH')) {
+    define('MEMBERSHIPING_INVENTORY_PLUGIN_PATH', plugin_dir_path(__FILE__));
+}
+if (!defined('MEMBERSHIPING_INVENTORY_PLUGIN_FILE')) {
+    define('MEMBERSHIPING_INVENTORY_PLUGIN_FILE', __FILE__);
+}
+if (!defined('MEMBERSHIPING_INVENTORY_TEXT_DOMAIN')) {
+    define('MEMBERSHIPING_INVENTORY_TEXT_DOMAIN', 'membershiping-inventory');
+}
 
 /**
  * Main plugin class
  */
-
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
-}
-
-// Declare WooCommerce HPOS compatibility
-add_action('before_woocommerce_init', function() {
-    if (class_exists('\Automattic\WooCommerce\Utilities\FeaturesUtil')) {
-        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true);
-    }
-});
-
-// Define plugin constants
-define('MEMBERSHIPING_INVENTORY_VERSION', '1.0.0');
-define('MEMBERSHIPING_INVENTORY_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('MEMBERSHIPING_INVENTORY_URL', plugin_dir_url(__FILE__)); // Alias for compatibility
-define('MEMBERSHIPING_INVENTORY_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('MEMBERSHIPING_INVENTORY_PLUGIN_FILE', __FILE__);
-define('MEMBERSHIPING_INVENTORY_TEXT_DOMAIN', 'membershiping-inventory');
 
 /**
  * Main plugin class
@@ -174,6 +166,7 @@ class Membershiping_Inventory_Main {
      * Check if required dependencies are active
      */
     public function check_dependencies() {
+        error_log('Membershiping Inventory: Starting dependency check...');
         $missing_dependencies = array();
         
         // Check for Membershiping Core (multiple detection methods)
@@ -204,12 +197,17 @@ class Membershiping_Inventory_Main {
         
         if (!$membershiping_detected) {
             $missing_dependencies[] = 'Membershiping Core Plugin';
+            error_log('Membershiping Inventory: Membershiping Core Plugin not detected');
+        } else {
+            error_log('Membershiping Inventory: Membershiping Core Plugin detected successfully');
         }
         
         // Check for WooCommerce
         if (!class_exists('WooCommerce')) {
             $missing_dependencies[] = 'WooCommerce';
+            error_log('Membershiping Inventory: WooCommerce not detected');
         } else {
+            error_log('Membershiping Inventory: WooCommerce detected successfully');
             // Check WooCommerce version compatibility
             if (defined('WC_VERSION') && version_compare(WC_VERSION, '8.0', '<')) {
                 add_action('admin_notices', function() {
@@ -250,6 +248,7 @@ class Membershiping_Inventory_Main {
             return false;
         }
         
+        error_log('Membershiping Inventory: All dependencies met successfully');
         return true;
     }
     
@@ -270,15 +269,18 @@ class Membershiping_Inventory_Main {
      * Initialize plugin only if dependencies are met
      */
     public function initialize_if_dependencies_met() {
+        error_log('Membershiping Inventory: initialize_if_dependencies_met called');
         // Prevent multiple initializations
         if (self::$initialized) {
+            error_log('Membershiping Inventory: Already initialized, skipping');
             return;
         }
         
         if ($this->check_dependencies()) {
-            self::$initialized = true;
+            error_log('Membershiping Inventory: Dependencies met, initializing components...');
             $this->initialize_components();
         } else {
+            error_log('Membershiping Inventory: Dependencies not met, using minimal initialization');
             // Minimal init: if WooCommerce exists, at least load includes and Flag Awards (for product UI/frontend display)
             $this->load_includes();
             $this->initialize_minimal_woocommerce_flag_awards();
@@ -289,13 +291,18 @@ class Membershiping_Inventory_Main {
      * Initialize all components after dependencies are confirmed
      */
     public function initialize_components() {
+        error_log('Membershiping Inventory: initialize_components() started');
+        
         // Additional safety check for duplicate initialization
         if (self::$initialized) {
+            error_log('Membershiping Inventory: Already initialized, exiting initialize_components');
             return;
         }
         
+        error_log('Membershiping Inventory: Starting load_includes...');
         // Load includes first
         $this->load_includes();
+        error_log('Membershiping Inventory: load_includes completed');
         
         // Initialize admin (only if not already done in early init)
         if (is_admin() && !isset($this->admin)) {
@@ -306,38 +313,75 @@ class Membershiping_Inventory_Main {
         
         // Check dependencies for other components
         if (!$this->check_dependencies()) {
-            error_log('Membershiping Inventory: Dependencies not met, admin-only mode');
+            error_log('Membershiping Inventory: Second dependency check failed, admin-only mode');
             // Still provide minimal WooCommerce flag awards integration so editors can configure products
             $this->initialize_minimal_woocommerce_flag_awards();
             return;
         }
         
+        error_log('Membershiping Inventory: Second dependency check passed, continuing with full initialization');
+        
         // Initialize database component (but don't recreate tables unless needed)
+        error_log('Membershiping Inventory: Initializing database...');
         $this->database = new Membershiping_Inventory_Database();
+        error_log('Membershiping Inventory: Database initialized');
         
         // Only initialize tables if not already done or if this is first activation
+        error_log('Membershiping Inventory: Initializing tables if needed...');
         $this->init_tables_if_needed();
+        error_log('Membershiping Inventory: Tables initialization completed');
         
         // Initialize core components
                 // Initialize security system
+        error_log('Membershiping Inventory: Initializing security system...');
         $this->security = Membershiping_Inventory_Security::get_instance();
+        error_log('Membershiping Inventory: Security system initialized');
+        
+        error_log('Membershiping Inventory: Initializing currencies...');
         $this->currencies = new Membershiping_Inventory_Currencies();
+        error_log('Membershiping Inventory: Currencies initialized');
+        
+        error_log('Membershiping Inventory: Initializing items...');
         $this->items = new Membershiping_Inventory_Items();
+        error_log('Membershiping Inventory: Items initialized');
+        
+        error_log('Membershiping Inventory: Initializing NFTs...');
         $this->nfts = new Membershiping_Inventory_NFTs();
+        error_log('Membershiping Inventory: NFTs initialized');
+        
+        error_log('Membershiping Inventory: Initializing frontend...');
         $this->frontend = new Membershiping_Inventory_Frontend();
+        error_log('Membershiping Inventory: Frontend initialized');
+        
+        error_log('Membershiping Inventory: Initializing trading...');
         $this->trading = new Membershiping_Inventory_Trading();
+        error_log('Membershiping Inventory: Trading initialized');
+        
+        error_log('Membershiping Inventory: Initializing flag awards...');
         $this->flag_awards = new Membershiping_Inventory_Flag_Awards();
+        error_log('Membershiping Inventory: Flag awards initialized');
+        
+        error_log('Membershiping Inventory: Initializing consumables...');
         $this->consumables = new Membershiping_Inventory_Consumables();
+        error_log('Membershiping Inventory: Consumables initialized');
         
         // Initialize core plugin integration (replaces standalone content restriction)
+        error_log('Membershiping Inventory: Initializing core restriction integration...');
         $this->core_restriction_integration = new Membershiping_Inventory_Core_Restriction_Integration();
+        error_log('Membershiping Inventory: Core restriction integration initialized');
         
         // Initialize integrations
+        error_log('Membershiping Inventory: Initializing WooCommerce integration...');
         $this->woocommerce_integration = new Membershiping_Inventory_WooCommerce_Integration();
+        error_log('Membershiping Inventory: WooCommerce integration initialized');
         
         // Initialize enhanced WooCommerce integration (currency pricing, item-based pricing)
         if (class_exists('Membershiping_Inventory_Enhanced_WooCommerce_Integration')) {
+            error_log('Membershiping Inventory: Initializing Enhanced WooCommerce Integration...');
             $this->enhanced_woocommerce_integration = new Membershiping_Inventory_Enhanced_WooCommerce_Integration();
+            error_log('Membershiping Inventory: Enhanced WooCommerce Integration initialized successfully');
+        } else {
+            error_log('Membershiping Inventory: Enhanced WooCommerce Integration class not found');
         }
         
         $this->frontend = new Membershiping_Inventory_Frontend();
@@ -347,6 +391,10 @@ class Membershiping_Inventory_Main {
         
         // Hook into core plugin actions
         $this->init_core_hooks();
+        
+        // Set initialization flag at the very end
+        self::$initialized = true;
+        error_log('Membershiping Inventory: Full initialization completed successfully');
         
         // Trigger initialization complete action
         do_action('membershiping_inventory_loaded');
@@ -368,6 +416,8 @@ class Membershiping_Inventory_Main {
      * Load required files
      */
     private function load_includes() {
+        error_log('Membershiping Inventory: load_includes() started');
+        
         $includes = array(
             'includes/class-database.php',
             'includes/class-security.php',
@@ -391,12 +441,16 @@ class Membershiping_Inventory_Main {
         
         foreach ($includes as $file) {
             $file_path = MEMBERSHIPING_INVENTORY_PLUGIN_PATH . $file;
+            error_log('Membershiping Inventory: Loading file - ' . $file);
             if (file_exists($file_path)) {
                 require_once $file_path;
+                error_log('Membershiping Inventory: Successfully loaded - ' . $file);
             } else {
                 error_log('Membershiping Inventory: Missing file - ' . $file_path);
             }
         }
+        
+        error_log('Membershiping Inventory: load_includes() completed');
     }
     
     /**

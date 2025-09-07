@@ -930,6 +930,7 @@ class Membershiping_Inventory_Flag_Awards {
      * Add product meta boxes
      */
     public function add_product_meta_boxes() {
+        error_log('Membershiping Inventory Flag Awards: add_product_meta_boxes called');
         add_meta_box(
             'membershiping_inventory_product',
             __('Membershiping Inventory Settings', 'membershiping-inventory'),
@@ -938,12 +939,14 @@ class Membershiping_Inventory_Flag_Awards {
             'normal',
             'default'
         );
+        error_log('Membershiping Inventory Flag Awards: Meta box added for product post type');
     }
     
     /**
      * Render product meta box
      */
     public function render_product_meta_box($post) {
+        error_log('Membershiping Inventory Flag Awards: render_product_meta_box called for post ID: ' . ($post ? $post->ID : 'unknown'));
         wp_nonce_field('membershiping_inventory_product_meta', 'membershiping_inventory_product_nonce');
         
         $is_inventory_item = get_post_meta($post->ID, '_membershiping_is_inventory_item', true);

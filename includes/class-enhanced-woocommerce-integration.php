@@ -89,17 +89,9 @@ class Membershiping_Inventory_Enhanced_WooCommerce_Integration {
      * Add enhanced pricing fields to product admin
      */
     public function add_enhanced_pricing_fields() {
-        global $post;
+        global $post, $wpdb;
         
         error_log('Membershiping Inventory Enhanced: add_enhanced_pricing_fields called for post ID: ' . ($post ? $post->ID : 'unknown'));
-        
-        // Always show this debug message first
-        echo '<div style="background: yellow; padding: 10px; margin: 10px 0; border: 2px solid red;">';
-        echo '<strong>DEBUG: Enhanced WooCommerce Integration is working!</strong><br>';
-        echo 'Post ID: ' . ($post ? $post->ID : 'unknown') . '<br>';
-        echo 'Currencies class exists: ' . (class_exists('Membershiping_Inventory_Currencies') ? 'YES' : 'NO') . '<br>';
-        echo 'This currencies instance: ' . ($this->currencies ? 'YES' : 'NO') . '<br>';
-        echo '</div>';
         
         // Check if we have currencies available
         if (!$this->currencies) {
