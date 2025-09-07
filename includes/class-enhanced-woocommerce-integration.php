@@ -53,9 +53,9 @@ class Membershiping_Inventory_Enhanced_WooCommerce_Integration {
      * Initialize hooks
      */
     private function init_hooks() {
-        // Admin meta boxes for currency pricing and item-based pricing
-        add_action('woocommerce_product_options_general_product_data', array($this, 'add_enhanced_pricing_fields'), 20);
-        add_action('woocommerce_process_product_meta', array($this, 'save_enhanced_pricing_fields'), 20);
+        // Admin meta boxes for currency pricing and item-based pricing - run after core plugin (priority 30)
+        add_action('woocommerce_product_options_general_product_data', array($this, 'add_enhanced_pricing_fields'), 30);
+        add_action('woocommerce_process_product_meta', array($this, 'save_enhanced_pricing_fields'), 30);
         
         // Frontend price display modifications
         add_filter('woocommerce_get_price_html', array($this, 'modify_price_display_for_currencies'), 25, 2);
@@ -91,10 +91,42 @@ class Membershiping_Inventory_Enhanced_WooCommerce_Integration {
     public function add_enhanced_pricing_fields() {
         global $post;
         
-        error_log('Membershiping Inventory: add_enhanced_pricing_fields called for post ID: ' . ($post ? $post->ID : 'unknown'));
+        error_log('Membershiping Inventory Enhanced: add_enhanced_pricing_fields called for post ID: ' . ($post ? $post->ID : 'unknown'));
+        
+        // Always show this debug message first
+        echo '<div style="background: yellow; padding: 10px; margin: 10px 0; border: 2px solid red;">';
+        echo '<strong>DEBUG: Enhanced WooCommerce Integration is working!</strong><br>';
+        echo 'Post ID: ' . ($post ? $post->ID : 'unknown') . '<br>';
+        echo 'Currencies class exists: ' . (class_exists('Membershiping_Inventory_Currencies') ? 'YES' : 'NO') . '<br>';
+        echo 'This currencies instance: ' . ($this->currencies ? 'YES' : 'NO') . '<br>';
+        echo '</div>';
+        
+        // Check if we have currencies available
+        if (!$this->currencies) {
+            error_log('Membershiping Inventory Enhanced: Currencies class not available');
+            echo '<div class="notice notice-error"><p>' . __('Currencies class not initialized', 'membershiping-inventory') . '</p></div>';
+            return;
+        }
+        
+        try {
+            $available_currencies = $this->currencies->get_all_currencies();
+            error_log('Membershiping Inventory Enhanced: Currency query returned: ' . print_r($available_currencies, true));
+        } catch (Exception $e) {
+            error_log('Membershiping Inventory Enhanced: Currency query failed: ' . $e->getMessage());
+            echo '<div class="notice notice-error"><p>' . __('Error loading currencies: ', 'membershiping-inventory') . esc_html($e->getMessage()) . '</p></div>';
+            return;
+        }
+        
+        if (empty($available_currencies)) {
+            error_log('Membershiping Inventory Enhanced: No currencies found');
+            echo '<div class="notice notice-warning"><p>' . __('No currencies found. Please create currencies first in the Inventory System. <a href="admin.php?page=membershiping-inventory-currencies">Create Currencies</a>', 'membershiping-inventory') . '</p></div>';
+            return;
+        }
+        
+        error_log('Membershiping Inventory Enhanced: Found ' . count($available_currencies) . ' currencies');
         
         echo '<div class="options_group">';
-        echo '<h3>' . __('Enhanced Inventory Pricing', 'membershiping-inventory') . '</h3>';
+        echo '<h3>' . __('💰 Enhanced Inventory Pricing', 'membershiping-inventory') . '</h3>';
         
         // Currency Payment Section
         echo '<h4>' . __('Currency Payment Options', 'membershiping-inventory') . '</h4>';
@@ -104,11 +136,6 @@ class Membershiping_Inventory_Enhanced_WooCommerce_Integration {
             'label' => __('Allow Currency Payment', 'membershiping-inventory'),
             'description' => __('Allow customers to purchase using plugin currencies', 'membershiping-inventory'),
         ));
-        
-        // Get available currencies
-        global $wpdb;
-        $currencies_table = $this->database->get_table('currencies');
-        $available_currencies = $wpdb->get_results("SELECT id, name, symbol FROM $currencies_table WHERE status = 'active' ORDER BY name");
         
         echo '<div class="membershiping-currency-pricing-section" style="margin-left: 20px;">';
         echo '<table class="widefat">';

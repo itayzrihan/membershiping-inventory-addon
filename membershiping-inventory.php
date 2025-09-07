@@ -160,6 +160,14 @@ class Membershiping_Inventory_Main {
         } else {
             error_log('Membershiping Inventory: Admin class not found during early init');
         }
+
+        // Ensure Flag Awards UI is available in product editor even if core dependency fails later
+        if (class_exists('WooCommerce') && class_exists('Membershiping_Inventory_Flag_Awards')) {
+            if (!isset($this->flag_awards)) {
+                $this->flag_awards = new Membershiping_Inventory_Flag_Awards();
+                error_log('Membershiping Inventory: Flag Awards initialized early for admin');
+            }
+        }
     }
     
     /**
@@ -270,6 +278,10 @@ class Membershiping_Inventory_Main {
         if ($this->check_dependencies()) {
             self::$initialized = true;
             $this->initialize_components();
+        } else {
+            // Minimal init: if WooCommerce exists, at least load includes and Flag Awards (for product UI/frontend display)
+            $this->load_includes();
+            $this->initialize_minimal_woocommerce_flag_awards();
         }
     }
     
@@ -295,6 +307,8 @@ class Membershiping_Inventory_Main {
         // Check dependencies for other components
         if (!$this->check_dependencies()) {
             error_log('Membershiping Inventory: Dependencies not met, admin-only mode');
+            // Still provide minimal WooCommerce flag awards integration so editors can configure products
+            $this->initialize_minimal_woocommerce_flag_awards();
             return;
         }
         
@@ -305,7 +319,8 @@ class Membershiping_Inventory_Main {
         $this->init_tables_if_needed();
         
         // Initialize core components
-        $this->security = new Membershiping_Inventory_Security();
+                // Initialize security system
+        $this->security = Membershiping_Inventory_Security::get_instance();
         $this->currencies = new Membershiping_Inventory_Currencies();
         $this->items = new Membershiping_Inventory_Items();
         $this->nfts = new Membershiping_Inventory_NFTs();
@@ -335,6 +350,18 @@ class Membershiping_Inventory_Main {
         
         // Trigger initialization complete action
         do_action('membershiping_inventory_loaded');
+    }
+
+    /**
+     * Minimal init to expose Flag Awards UI and frontend section when WooCommerce is active
+     */
+    private function initialize_minimal_woocommerce_flag_awards() {
+        if (class_exists('WooCommerce') && class_exists('Membershiping_Inventory_Flag_Awards')) {
+            if (!isset($this->flag_awards)) {
+                $this->flag_awards = new Membershiping_Inventory_Flag_Awards();
+                error_log('Membershiping Inventory: Minimal Flag Awards initialized (WooCommerce detected)');
+            }
+        }
     }
     
     /**

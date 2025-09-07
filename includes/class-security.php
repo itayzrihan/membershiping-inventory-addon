@@ -10,14 +10,37 @@ if (!defined('ABSPATH')) {
 class Membershiping_Inventory_Security {
     
     /**
+     * Singleton instance
+     */
+    private static $instance = null;
+    
+    /**
+     * Hooks initialized flag
+     */
+    private static $hooks_initialized = false;
+    
+    /**
      * Constructor
      */
     public function __construct() {
-        $this->init_hooks();
+        if (!self::$hooks_initialized) {
+            $this->init_hooks();
+            self::$hooks_initialized = true;
+        }
     }
     
     /**
-     * Initialize security hooks
+     * Get singleton instance
+     */
+    public static function get_instance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+    
+    /**
+     * Initialize security hooks (only once)
      */
     private function init_hooks() {
         // AJAX security
@@ -184,12 +207,30 @@ class Membershiping_Inventory_Security {
         }
         
         if (isset($data['rarity'])) {
-            $allowed_rarities = array('common', 'uncommon', 'rare', 'epic', 'legendary');
+            $allowed_rarities = array('common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic');
             $sanitized['rarity'] = in_array($data['rarity'], $allowed_rarities) ? $data['rarity'] : 'common';
+        }
+
+        // Item type
+        if (isset($data['item_type'])) {
+            $allowed_types = array('consumable','equipment','gift_box','material','collectible','weapon','armor','egg','bartrek','code','card','rock','herb','crystal','rune','scroll','potion','gem','fossil','orb','tome');
+            $sanitized['item_type'] = in_array($data['item_type'], $allowed_types) ? $data['item_type'] : 'collectible';
         }
         
         if (isset($data['tradeable'])) {
             $sanitized['tradeable'] = (bool) $data['tradeable'];
+        }
+        if (isset($data['is_tradeable'])) {
+            $sanitized['is_tradeable'] = (int) (bool) $data['is_tradeable'];
+        }
+        if (isset($data['is_consumable'])) {
+            $sanitized['is_consumable'] = (int) (bool) $data['is_consumable'];
+        }
+        if (isset($data['is_stackable'])) {
+            $sanitized['is_stackable'] = (int) (bool) $data['is_stackable'];
+        }
+        if (isset($data['max_stack_size'])) {
+            $sanitized['max_stack_size'] = max(1, intval($data['max_stack_size']));
         }
         
         if (isset($data['value'])) {
@@ -202,6 +243,74 @@ class Membershiping_Inventory_Security {
             } else {
                 $sanitized['metadata'] = array();
             }
+        }
+
+        // Images and JSON-ish fields
+        if (isset($data['base_image'])) {
+            $sanitized['base_image'] = esc_url_raw($data['base_image']);
+        }
+        if (isset($data['rarity_images'])) {
+            if (is_array($data['rarity_images'])) {
+                $clean = array();
+                foreach ($data['rarity_images'] as $rarity => $info) {
+                    if (is_array($info)) {
+                        $clean[$rarity] = array(
+                            'image' => isset($info['image']) ? esc_url_raw($info['image']) : '',
+                            'name'  => isset($info['name']) ? sanitize_text_field($info['name']) : ''
+                        );
+                    } elseif (is_string($info)) {
+                        $clean[$rarity] = esc_url_raw($info);
+                    }
+                }
+                $sanitized['rarity_images'] = wp_json_encode($clean);
+            } else {
+                // Assume already JSON string
+                $sanitized['rarity_images'] = is_string($data['rarity_images']) ? $data['rarity_images'] : null;
+            }
+        }
+        if (isset($data['stats'])) {
+            if (is_array($data['stats'])) {
+                $sanitized['stats'] = wp_json_encode($data['stats']);
+            } else {
+                // allow pre-encoded JSON string
+                $sanitized['stats'] = is_string($data['stats']) ? $data['stats'] : null;
+            }
+        }
+        if (isset($data['requirements'])) {
+            if (is_array($data['requirements'])) {
+                $sanitized['requirements'] = wp_json_encode($data['requirements']);
+            } else {
+                $sanitized['requirements'] = is_string($data['requirements']) ? $data['requirements'] : null;
+            }
+        }
+        if (isset($data['currency_prices'])) {
+            if (is_array($data['currency_prices'])) {
+                $sanitized['currency_prices'] = wp_json_encode($data['currency_prices']);
+            } else {
+                $sanitized['currency_prices'] = is_string($data['currency_prices']) ? $data['currency_prices'] : null;
+            }
+        }
+        if (isset($data['use_effect'])) {
+            $sanitized['use_effect'] = is_array($data['use_effect']) ? wp_json_encode($data['use_effect']) : sanitize_text_field($data['use_effect']);
+        }
+        if (isset($data['gift_box_items'])) {
+            $sanitized['gift_box_items'] = is_array($data['gift_box_items']) ? wp_json_encode($data['gift_box_items']) : sanitize_text_field($data['gift_box_items']);
+        }
+        if (isset($data['exclude_from_shop'])) {
+            $sanitized['exclude_from_shop'] = (int) (bool) $data['exclude_from_shop'];
+        }
+        if (isset($data['allow_currency_purchase'])) {
+            $sanitized['allow_currency_purchase'] = (int) (bool) $data['allow_currency_purchase'];
+        }
+        if (isset($data['quantity_limit'])) {
+            $sanitized['quantity_limit'] = $data['quantity_limit'] === null ? null : max(0, intval($data['quantity_limit']));
+        }
+        if (isset($data['mint_nft'])) {
+            $sanitized['mint_nft'] = (int) (bool) $data['mint_nft'];
+        }
+        if (isset($data['status'])) {
+            $allowed_status = array('active','inactive','draft');
+            $sanitized['status'] = in_array($data['status'], $allowed_status) ? $data['status'] : 'active';
         }
         
         // NFT specific fields

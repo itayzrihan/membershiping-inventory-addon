@@ -19,7 +19,7 @@ class Membershiping_Inventory_Flag_Awards {
         global $wpdb;
         $this->wpdb = $wpdb;
         $this->database = new Membershiping_Inventory_Database();
-        $this->security = new Membershiping_Inventory_Security();
+        $this->security = Membershiping_Inventory_Security::get_instance();
         $this->items = new Membershiping_Inventory_Items();
         
         $this->init_hooks();
@@ -35,6 +35,10 @@ class Membershiping_Inventory_Flag_Awards {
         add_action('woocommerce_order_status_completed', array($this, 'process_order_completion'), 10, 1);
         add_action('woocommerce_order_status_processing', array($this, 'process_order_completion'), 10, 1);
         
+    // Frontend product page: show flag awarding section
+    // Place after short description (priority ~25-30) and before add to cart (30)
+    add_action('woocommerce_single_product_summary', array($this, 'render_product_flag_awards_section'), 28);
+
         // Product configuration hooks
         add_action('woocommerce_product_options_general_product_data', array($this, 'add_product_flag_fields'), 25);
         add_action('woocommerce_process_product_meta', array($this, 'save_product_flag_fields'), 25);
@@ -53,6 +57,78 @@ class Membershiping_Inventory_Flag_Awards {
         if (!wp_next_scheduled('membershiping_inventory_cleanup_guest_awards')) {
             wp_schedule_event(time(), 'daily', 'membershiping_inventory_cleanup_guest_awards');
         }
+    }
+
+    /**
+     * Render a small "Flag awards" section on the single product page
+     */
+    public function render_product_flag_awards_section() {
+        if (!function_exists('is_product') || !is_product()) {
+            return;
+        }
+
+        global $product;
+        if (!$product || !is_a($product, 'WC_Product')) {
+            return;
+        }
+
+        $product_id = $product->get_id();
+
+        // Get configured flags (from DB links or meta fallback)
+        $flag_config = $this->get_product_flag_config($product_id);
+
+        // Also respect the explicit enable meta if present (but don't block DB-linked flags)
+        $enabled_meta = get_post_meta($product_id, '_membershiping_enable_flag_awards', true);
+
+        if (empty($flag_config) && $enabled_meta !== 'yes') {
+            // Nothing to show
+            return;
+        }
+
+        // Allow themes/admins to disable rendering
+        $show = apply_filters('membershiping_inventory_show_product_flag_awards', true, $product_id, $flag_config);
+        if (!$show) {
+            return;
+        }
+
+        // Basic markup for the section
+        echo '<div class="membershiping-flag-awards woocommerce-product-details__short-description" style="margin:12px 0;">';
+        echo '<h3 style="font-size:1.1em;margin:0 0 6px;">' . esc_html__('Awards you get', 'membershiping-inventory') . '</h3>';
+
+        if (!empty($flag_config)) {
+            echo '<ul class="membershiping-flag-awards__list" style="list-style:disc;padding-left:18px;margin:0;">';
+            foreach ($flag_config as $award) {
+                $name = isset($award['flag']) ? $award['flag'] : (isset($award['flag_id']) ? ('#' . $award['flag_id']) : __('Flag', 'membershiping-inventory'));
+                $qty  = isset($award['quantity']) ? intval($award['quantity']) : 1;
+                $type = isset($award['type']) ? $award['type'] : 'add';
+
+                // Humanize type
+                switch ($type) {
+                    case 'set':
+                        $type_label = __('set to', 'membershiping-inventory');
+                        break;
+                    case 'multiply':
+                        $type_label = __('multiplied by', 'membershiping-inventory');
+                        break;
+                    case 'add':
+                    default:
+                        $type_label = __('+', 'membershiping-inventory');
+                        break;
+                }
+
+                // Compose line like: Gold Member (+ 1) or (set to 1)
+                $line = sprintf('%s (%s %s)', esc_html($name), esc_html($type_label), esc_html($qty));
+                echo '<li class="membershiping-flag-awards__item">' . $line . '</li>';
+            }
+            echo '</ul>';
+        } else {
+            // Enabled but not configured – hint admin-only text for logged-in admins
+            if (current_user_can('edit_products')) {
+                echo '<p class="membershiping-flag-awards__notice" style="margin:0;opacity:.8;">' . esc_html__('Flag awards enabled but not configured for this product.', 'membershiping-inventory') . '</p>';
+            }
+        }
+
+        echo '</div>';
     }
     
     /**
@@ -247,8 +323,10 @@ class Membershiping_Inventory_Flag_Awards {
             
             if (!is_wp_error($result)) {
                 // Check if NFT should be minted
-                if ($inventory_config['mint_nft'] && !$inventory_config['is_stackable']) {
-                    $this->mint_nft_for_purchase($user_id, $inventory_config['item_id'], $order_id);
+                if ($inventory_config['mint_nft']) {
+                    for ($i = 0; $i < max(1, intval($quantity)); $i++) {
+                        $this->mint_nft_for_purchase($user_id, $inventory_config['item_id'], $order_id);
+                    }
                 }
             }
         } else {
@@ -273,7 +351,7 @@ class Membershiping_Inventory_Flag_Awards {
             'acquisition_method' => 'purchase'
         );
         
-        $result = $nfts->mint_nft($user_id, $item_id, 'common', null, $metadata);
+    $result = $nfts->mint_nft($item_id, $user_id, 'common', $metadata);
         
         if (!is_wp_error($result)) {
             $this->security->log_security_event('nft_minted_purchase', $user_id, array(
@@ -485,9 +563,11 @@ class Membershiping_Inventory_Flag_Awards {
             return null;
         }
         
+        $mint = get_post_meta($product_id, '_membershiping_mint_nft', true);
+        if ($mint === '') { $mint = 'yes'; }
         return array(
             'item_id' => get_post_meta($product_id, '_membershiping_inventory_item_id', true),
-            'mint_nft' => get_post_meta($product_id, '_membershiping_mint_nft', true),
+            'mint_nft' => $mint,
             'is_stackable' => get_post_meta($product_id, '_membershiping_is_stackable', true)
         );
     }
@@ -572,7 +652,9 @@ class Membershiping_Inventory_Flag_Awards {
             if (!is_wp_error($result)) {
                 // Check if NFT should be minted
                 if ($award->mint_nft) {
-                    $this->mint_nft_for_purchase($user_id, $award->item_id, $award->order_id);
+                    for ($i = 0; $i < max(1, intval($award->quantity)); $i++) {
+                        $this->mint_nft_for_purchase($user_id, $award->item_id, $award->order_id);
+                    }
                 }
                 
                 // Mark as claimed
@@ -769,9 +851,56 @@ class Membershiping_Inventory_Flag_Awards {
      * Save product flag fields
      */
     public function save_product_flag_fields($post_id) {
-        if (!current_user_can('edit_post', $post_id)) {
+        error_log('Membershiping Flag Awards: save_product_flag_fields called for post ' . $post_id);
+        
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            error_log('Membershiping Flag Awards: Autosave detected, skipping');
             return;
         }
+        
+        if (!current_user_can('edit_post', $post_id)) {
+            error_log('Membershiping Flag Awards: User cannot edit post ' . $post_id);
+            return;
+        }
+        
+        // Verify nonce
+        if (!isset($_POST['membershiping_inventory_product_nonce']) || 
+            !wp_verify_nonce($_POST['membershiping_inventory_product_nonce'], 'membershiping_inventory_product_meta')) {
+            error_log('Membershiping Flag Awards: Nonce verification failed');
+            return;
+        }
+        
+        error_log('Membershiping Flag Awards: POST data - ' . print_r($_POST, true));
+        
+        // Save inventory item settings
+        $is_inventory_item = isset($_POST['membershiping_is_inventory_item']) ? 'yes' : 'no';
+        update_post_meta($post_id, '_membershiping_is_inventory_item', $is_inventory_item);
+        error_log('Membershiping Flag Awards: Saved is_inventory_item = ' . $is_inventory_item);
+        
+        // Save selected inventory item ID
+        if (isset($_POST['membershiping_inventory_item_id']) && !empty($_POST['membershiping_inventory_item_id'])) {
+            $item_id = intval($_POST['membershiping_inventory_item_id']);
+            update_post_meta($post_id, '_membershiping_inventory_item_id', $item_id);
+            error_log('Membershiping Flag Awards: Saved inventory_item_id = ' . $item_id);
+        } else {
+            delete_post_meta($post_id, '_membershiping_inventory_item_id');
+            error_log('Membershiping Flag Awards: Deleted inventory_item_id (empty)');
+        }
+        
+        // Save NFT minting setting
+        $mint_nft = isset($_POST['membershiping_mint_nft']) ? 'yes' : 'no';
+        update_post_meta($post_id, '_membershiping_mint_nft', $mint_nft);
+        error_log('Membershiping Flag Awards: Saved mint_nft = ' . $mint_nft);
+        
+        // Save stackable setting
+        $is_stackable = isset($_POST['membershiping_is_stackable']) ? 'yes' : 'no';
+        update_post_meta($post_id, '_membershiping_is_stackable', $is_stackable);
+        error_log('Membershiping Flag Awards: Saved is_stackable = ' . $is_stackable);
+        
+        // Save exclude from shop setting
+        $exclude_from_shop = isset($_POST['membershiping_exclude_from_shop']) ? 'yes' : 'no';
+        update_post_meta($post_id, '_membershiping_exclude_from_shop', $exclude_from_shop);
+        error_log('Membershiping Flag Awards: Saved exclude_from_shop = ' . $exclude_from_shop);
         
         // Save flag awards enablement
         $enable_flag_awards = isset($_POST['membershiping_enable_flag_awards']) ? 'yes' : 'no';
@@ -819,7 +948,8 @@ class Membershiping_Inventory_Flag_Awards {
         
         $is_inventory_item = get_post_meta($post->ID, '_membershiping_is_inventory_item', true);
         $inventory_item_id = get_post_meta($post->ID, '_membershiping_inventory_item_id', true);
-        $mint_nft = get_post_meta($post->ID, '_membershiping_mint_nft', true);
+    $mint_nft = get_post_meta($post->ID, '_membershiping_mint_nft', true);
+    if ($mint_nft === '') { $mint_nft = 'yes'; }
         $is_stackable = get_post_meta($post->ID, '_membershiping_is_stackable', true);
         $exclude_from_shop = get_post_meta($post->ID, '_membershiping_exclude_from_shop', true);
         
@@ -855,7 +985,7 @@ class Membershiping_Inventory_Flag_Awards {
                 <th><label for="membershiping_mint_nft"><?php _e('Mint NFT', 'membershiping-inventory'); ?></label></th>
                 <td>
                     <input type="checkbox" id="membershiping_mint_nft" name="membershiping_mint_nft" value="yes" <?php checked($mint_nft, 'yes'); ?>>
-                    <span class="description"><?php _e('Mint a unique NFT for non-stackable items', 'membershiping-inventory'); ?></span>
+                    <span class="description"><?php _e('Mint an NFT for each purchase (applies to all items, including stackable)', 'membershiping-inventory'); ?></span>
                 </td>
             </tr>
             
@@ -900,11 +1030,22 @@ class Membershiping_Inventory_Flag_Awards {
             
             // Flag management
             $('.add-flag-link').click(function() {
-                var flagId = $('#new_flag_id').val();
-                var flagName = $('#new_flag_name').val();
-                
-                if (!flagId || !flagName) {
-                    alert('Please enter both flag ID and name');
+                var flagId = '';
+                var flagName = '';
+                var $select = $('#available_flags_select');
+
+                if ($select.length && $select.val()) {
+                    flagId = $select.val();
+                    // Use slug if present, otherwise name
+                    flagName = $select.find('option:selected').data('slug') || $select.find('option:selected').data('name') || '';
+                } else {
+                    // Fallback to manual inputs
+                    flagId = $('#new_flag_id').val();
+                    flagName = $('#new_flag_name').val();
+                }
+
+                if (!flagId) {
+                    alert('Please select or enter a Flag ID');
                     return;
                 }
                 
@@ -1059,6 +1200,7 @@ class Membershiping_Inventory_Flag_Awards {
      */
     private function render_flag_links_interface($product_id) {
         $linked_flags = $this->get_product_linked_flags($product_id);
+    $available_flags = $this->get_available_flags();
         
         ?>
         <div class="flag-links-container">
@@ -1080,26 +1222,137 @@ class Membershiping_Inventory_Flag_Awards {
             <?php endif; ?>
             
             <h4><?php _e('Add New Flag Link:', 'membershiping-inventory'); ?></h4>
-            <table class="form-table">
-                <tr>
-                    <td>
-                        <label for="new_flag_id"><?php _e('Flag ID:', 'membershiping-inventory'); ?></label>
-                        <input type="number" id="new_flag_id" name="new_flag_id" style="width: 100px;" min="1" placeholder="123">
-                    </td>
-                    <td>
-                        <label for="new_flag_name"><?php _e('Flag Name:', 'membershiping-inventory'); ?></label>
-                        <input type="text" id="new_flag_name" name="new_flag_name" style="width: 200px;" placeholder="e.g., premium_member">
-                    </td>
-                    <td>
-                        <button type="button" class="button button-primary add-flag-link"><?php _e('Link Flag', 'membershiping-inventory'); ?></button>
-                    </td>
-                </tr>
-            </table>
-            <p class="description">
-                <?php _e('Flag ID should match the flag ID in your Membershiping system. Flag name is for reference only.', 'membershiping-inventory'); ?>
-            </p>
+            <?php if (!empty($available_flags)): ?>
+                <table class="form-table">
+                    <tr>
+                        <td>
+                            <label for="available_flags_select"><?php _e('Select Flag:', 'membershiping-inventory'); ?></label>
+                            <select id="available_flags_select" name="available_flag_id" style="min-width: 280px;">
+                                <option value=""><?php _e('Select a flag…', 'membershiping-inventory'); ?></option>
+                                <?php foreach ($available_flags as $flag): ?>
+                                    <option value="<?php echo esc_attr($flag['id']); ?>"
+                                            data-name="<?php echo esc_attr($flag['name']); ?>"
+                                            data-slug="<?php echo esc_attr($flag['slug']); ?>">
+                                        <?php echo esc_html($flag['name'] . ($flag['slug'] ? ' (' . $flag['slug'] . ')' : '') . ' — ID: ' . $flag['id']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                        <td>
+                            <button type="button" class="button button-primary add-flag-link"><?php _e('Link Flag', 'membershiping-inventory'); ?></button>
+                        </td>
+                    </tr>
+                </table>
+                <p class="description">
+                    <?php _e('Choose a flag from your Membershiping system to link with this product.', 'membershiping-inventory'); ?>
+                </p>
+            <?php else: ?>
+                <table class="form-table">
+                    <tr>
+                        <td>
+                            <label for="new_flag_id"><?php _e('Flag ID:', 'membershiping-inventory'); ?></label>
+                            <input type="number" id="new_flag_id" name="new_flag_id" style="width: 100px;" min="1" placeholder="123">
+                        </td>
+                        <td>
+                            <label for="new_flag_name"><?php _e('Flag Name (slug):', 'membershiping-inventory'); ?></label>
+                            <input type="text" id="new_flag_name" name="new_flag_name" style="width: 200px;" placeholder="e.g., premium_member">
+                        </td>
+                        <td>
+                            <button type="button" class="button button-primary add-flag-link"><?php _e('Link Flag', 'membershiping-inventory'); ?></button>
+                        </td>
+                    </tr>
+                </table>
+                <p class="description">
+                    <?php _e('Could not load flag list from the core plugin. Enter the Flag ID and optional slug manually.', 'membershiping-inventory'); ?>
+                </p>
+            <?php endif; ?>
         </div>
         <?php
+    }
+
+    /**
+     * Try to retrieve available flags from the Membershiping core plugin or DB as fallback
+     * Returns array of [ ['id'=>int,'name'=>string,'slug'=>string], ... ]
+     */
+    private function get_available_flags() {
+        $flags = array();
+
+        // Preferred: Core user flags API
+        if (class_exists('Membershiping_User_Flags')) {
+            try {
+                $uf = new Membershiping_User_Flags();
+                if (method_exists($uf, 'get_all_flags')) {
+                    $list = $uf->get_all_flags();
+                } elseif (method_exists($uf, 'get_flags')) {
+                    $list = $uf->get_flags();
+                } else {
+                    $list = array();
+                }
+                foreach ((array)$list as $f) {
+                    $flags[] = array(
+                        'id' => intval($f->id ?? $f['id'] ?? 0),
+                        'name' => sanitize_text_field($f->name ?? $f['name'] ?? ''),
+                        'slug' => sanitize_title($f->slug ?? $f['slug'] ?? '')
+                    );
+                }
+            } catch (Exception $e) {}
+        }
+
+        // Alternative: Legacy Membershiping_Flags class
+        if (empty($flags) && class_exists('Membershiping_Flags')) {
+            try {
+                $mf = new Membershiping_Flags();
+                if (method_exists($mf, 'get_all_flags')) {
+                    $list = $mf->get_all_flags();
+                } elseif (method_exists($mf, 'get_flags')) {
+                    $list = $mf->get_flags();
+                } else {
+                    $list = array();
+                }
+                foreach ((array)$list as $f) {
+                    $flags[] = array(
+                        'id' => intval($f->id ?? $f['id'] ?? 0),
+                        'name' => sanitize_text_field($f->name ?? $f['name'] ?? ''),
+                        'slug' => sanitize_title($f->slug ?? $f['slug'] ?? '')
+                    );
+                }
+            } catch (Exception $e) {}
+        }
+
+        // DB fallback(s)
+        if (empty($flags)) {
+            global $wpdb;
+            // Try a canonical flags table
+            $table_flags = $wpdb->prefix . 'membershiping_flags';
+            $exists = ($wpdb->get_var("SHOW TABLES LIKE '" . esc_sql($table_flags) . "'") === $table_flags);
+            if ($exists) {
+                $rows = $wpdb->get_results("SELECT id, name, slug FROM {$table_flags} ORDER BY name LIMIT 200");
+                foreach ((array)$rows as $r) {
+                    $flags[] = array(
+                        'id' => intval($r->id),
+                        'name' => sanitize_text_field($r->name),
+                        'slug' => sanitize_title($r->slug)
+                    );
+                }
+            }
+        }
+
+        // Deduplicate and filter empties
+        $unique = array();
+        foreach ($flags as $f) {
+            // Must have a real numeric ID to be linkable
+            if (empty($f['id']) || !is_numeric($f['id'])) { continue; }
+            $key = $f['id'] . '|' . $f['slug'];
+            $unique[$key] = $f;
+        }
+
+        // Sort by name
+        $out = array_values($unique);
+        usort($out, function($a, $b) {
+            return strcasecmp($a['name'], $b['name']);
+        });
+
+        return $out;
     }
     
     /**

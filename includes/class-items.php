@@ -18,7 +18,7 @@ class Membershiping_Inventory_Items {
         global $wpdb;
         $this->wpdb = $wpdb;
         $this->database = new Membershiping_Inventory_Database();
-        $this->security = new Membershiping_Inventory_Security();
+        $this->security = Membershiping_Inventory_Security::get_instance();
         $this->currencies = new Membershiping_Inventory_Currencies();
         
         $this->init_hooks();
@@ -28,10 +28,6 @@ class Membershiping_Inventory_Items {
      * Initialize hooks
      */
     private function init_hooks() {
-        // WooCommerce integration hooks
-        add_action('add_meta_boxes', array($this, 'add_product_meta_boxes'));
-        add_action('woocommerce_process_product_meta', array($this, 'save_product_meta'), 10, 1);
-        
         // Product display modifications
         add_filter('woocommerce_is_purchasable', array($this, 'check_item_purchasability'), 10, 2);
         add_action('woocommerce_single_product_summary', array($this, 'display_item_info'), 25);
@@ -73,7 +69,7 @@ class Membershiping_Inventory_Items {
             return new WP_Error('item_exists', 'Item already exists for this product');
         }
         
-        $result = $this->wpdb->insert(
+    $result = $this->wpdb->insert(
             $items_table,
             array(
                 'product_id' => $sanitized_data['product_id'],
@@ -89,7 +85,8 @@ class Membershiping_Inventory_Items {
                 'is_consumable' => $sanitized_data['is_consumable'] ?? 0,
                 'is_stackable' => $sanitized_data['is_stackable'] ?? 1,
                 'max_stack_size' => $sanitized_data['max_stack_size'] ?? 999,
-                'use_effect' => $sanitized_data['use_effect'] ?? null,
+        'mint_nft' => isset($sanitized_data['mint_nft']) ? (int)$sanitized_data['mint_nft'] : 1,
+        'use_effect' => $sanitized_data['use_effect'] ?? null,
                 'gift_box_items' => $sanitized_data['gift_box_items'] ?? null,
                 'currency_prices' => $sanitized_data['currency_prices'] ?? null,
                 'exclude_from_shop' => $sanitized_data['exclude_from_shop'] ?? 0,
@@ -98,7 +95,7 @@ class Membershiping_Inventory_Items {
                 'current_quantity' => 0,
                 'status' => $sanitized_data['status'] ?? 'active'
             ),
-            array('%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s')
+            array('%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%s')
         );
         
         if ($result === false) {
@@ -276,7 +273,49 @@ class Membershiping_Inventory_Items {
         $user_items_table = $this->database->get_table('user_items');
         $awards_table = $this->database->get_table('item_awards');
         
-        // For stackable items, update existing or create new record
+        $result = true;
+        $nfts = new Membershiping_Inventory_NFTs();
+
+        // Prepare optional metadata for NFTs
+        $meta = array(
+            'acquisition_method' => $award_type,
+            'source_reference' => $source_reference,
+        );
+        // Include tags if present in item stats
+        if (!empty($item->stats)) {
+            $stats_arr = json_decode($item->stats, true);
+            if (is_array($stats_arr) && !empty($stats_arr['tags'])) {
+                $meta['tags'] = $stats_arr['tags'];
+            }
+        }
+        // Include an image hint if available (per rarity or base)
+        $image_url = null;
+        if (!empty($item->rarity_images)) {
+            $ri = json_decode($item->rarity_images, true);
+            if (is_array($ri) && isset($ri[$item->rarity])) {
+                if (is_array($ri[$item->rarity]) && !empty($ri[$item->rarity]['image'])) {
+                    $image_url = $ri[$item->rarity]['image'];
+                } elseif (is_string($ri[$item->rarity])) {
+                    $image_url = $ri[$item->rarity];
+                }
+            }
+        }
+        if (!$image_url && !empty($item->base_image)) {
+            $image_url = $item->base_image;
+        }
+        if ($image_url) {
+            $meta['image_url'] = $image_url;
+        }
+        
+        // Always mint NFTs for each quantity (even if stackable)
+        for ($i = 0; $i < $quantity; $i++) {
+            $nft_result = $nfts->mint_nft($item_id, $user_id, $item->rarity, $meta);
+            if (is_wp_error($nft_result)) {
+                return $nft_result;
+            }
+        }
+        
+        // Additionally maintain stack count for stackable items
         if ($item->is_stackable) {
             $existing = $this->wpdb->get_row(
                 $this->wpdb->prepare(
@@ -287,14 +326,11 @@ class Membershiping_Inventory_Items {
             );
             
             if ($existing) {
-                // Update existing stack
                 $new_quantity = $existing->quantity + $quantity;
-                
                 // Check stack size limit
                 if ($new_quantity > $item->max_stack_size) {
                     return new WP_Error('stack_limit', 'Stack size limit exceeded');
                 }
-                
                 $result = $this->wpdb->update(
                     $user_items_table,
                     array('quantity' => $new_quantity),
@@ -303,7 +339,6 @@ class Membershiping_Inventory_Items {
                     array('%d')
                 );
             } else {
-                // Create new record
                 $result = $this->wpdb->insert(
                     $user_items_table,
                     array(
@@ -315,32 +350,13 @@ class Membershiping_Inventory_Items {
                     array('%d', '%d', '%d', '%s')
                 );
             }
-        } else {
-            // For non-stackable items, create NFTs
-            $nfts = new Membershiping_Inventory_NFTs();
-            
-            for ($i = 0; $i < $quantity; $i++) {
-                $nft_result = $nfts->mint_nft($item_id, $user_id, $item->rarity);
-                if (is_wp_error($nft_result)) {
-                    return $nft_result;
-                }
-            }
-            
-            $result = true; // NFTs were created successfully
         }
         
         if ($result === false) {
             return new WP_Error('db_error', 'Failed to award item');
         }
         
-        // Update item quantity
-        $this->wpdb->update(
-            $this->database->get_table('items'),
-            array('current_quantity' => $item->current_quantity + $quantity),
-            array('id' => $item_id),
-            array('%d'),
-            array('%d')
-        );
+        // Do not update items.current_quantity here; mint_nft() increments it per NFT
         
         // Log the award
         $this->wpdb->insert(
@@ -627,201 +643,6 @@ class Membershiping_Inventory_Items {
     }
     
     /**
-     * Add product meta boxes
-     */
-    public function add_product_meta_boxes() {
-        add_meta_box(
-            'membershiping_inventory_item',
-            __('Inventory Item Settings', 'membershiping-inventory'),
-            array($this, 'render_product_meta_box'),
-            'product',
-            'normal',
-            'high'
-        );
-    }
-    
-    /**
-     * Render product meta box
-     */
-    public function render_product_meta_box($post) {
-        wp_nonce_field('membershiping_inventory_product_meta', 'membershiping_inventory_product_nonce');
-        
-        $is_virtual_item = get_post_meta($post->ID, '_membershiping_is_virtual_item', true) === 'yes';
-        $item = $this->get_item_by_product($post->ID);
-        
-        ?>
-        <div class="membershiping-inventory-meta-box">
-            <table class="form-table">
-                <tr>
-                    <th scope="row">
-                        <label for="membershiping_is_virtual_item">
-                            <?php _e('Virtual Item', 'membershiping-inventory'); ?>
-                        </label>
-                    </th>
-                    <td>
-                        <input type="checkbox" id="membershiping_is_virtual_item" name="membershiping_is_virtual_item" value="yes" <?php checked($is_virtual_item); ?>>
-                        <span class="description"><?php _e('Enable this product as a virtual inventory item', 'membershiping-inventory'); ?></span>
-                    </td>
-                </tr>
-                
-                <?php if ($is_virtual_item): ?>
-                <tr>
-                    <th scope="row">
-                        <label for="membershiping_item_type">
-                            <?php _e('Item Type', 'membershiping-inventory'); ?>
-                        </label>
-                    </th>
-                    <td>
-                        <select id="membershiping_item_type" name="membershiping_item_type">
-                            <option value="collectible" <?php selected($item->item_type ?? '', 'collectible'); ?>><?php _e('Collectible', 'membershiping-inventory'); ?></option>
-                            <option value="consumable" <?php selected($item->item_type ?? '', 'consumable'); ?>><?php _e('Consumable', 'membershiping-inventory'); ?></option>
-                            <option value="equipment" <?php selected($item->item_type ?? '', 'equipment'); ?>><?php _e('Equipment', 'membershiping-inventory'); ?></option>
-                            <option value="gift_box" <?php selected($item->item_type ?? '', 'gift_box'); ?>><?php _e('Gift Box', 'membershiping-inventory'); ?></option>
-                            <option value="material" <?php selected($item->item_type ?? '', 'material'); ?>><?php _e('Material', 'membershiping-inventory'); ?></option>
-                        </select>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="membershiping_item_rarity">
-                            <?php _e('Rarity', 'membershiping-inventory'); ?>
-                        </label>
-                    </th>
-                    <td>
-                        <select id="membershiping_item_rarity" name="membershiping_item_rarity">
-                            <option value="common" <?php selected($item->rarity ?? '', 'common'); ?>><?php _e('Common', 'membershiping-inventory'); ?></option>
-                            <option value="uncommon" <?php selected($item->rarity ?? '', 'uncommon'); ?>><?php _e('Uncommon', 'membershiping-inventory'); ?></option>
-                            <option value="rare" <?php selected($item->rarity ?? '', 'rare'); ?>><?php _e('Rare', 'membershiping-inventory'); ?></option>
-                            <option value="epic" <?php selected($item->rarity ?? '', 'epic'); ?>><?php _e('Epic', 'membershiping-inventory'); ?></option>
-                            <option value="legendary" <?php selected($item->rarity ?? '', 'legendary'); ?>><?php _e('Legendary', 'membershiping-inventory'); ?></option>
-                            <option value="mythic" <?php selected($item->rarity ?? '', 'mythic'); ?>><?php _e('Mythic', 'membershiping-inventory'); ?></option>
-                        </select>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="membershiping_exclude_from_shop">
-                            <?php _e('Shop Settings', 'membershiping-inventory'); ?>
-                        </label>
-                    </th>
-                    <td>
-                        <label>
-                            <input type="checkbox" id="membershiping_exclude_from_shop" name="membershiping_exclude_from_shop" value="yes" <?php checked($item->exclude_from_shop ?? 0, 1); ?>>
-                            <?php _e('Exclude from shop (can only be awarded)', 'membershiping-inventory'); ?>
-                        </label>
-                        <br>
-                        <label>
-                            <input type="checkbox" id="membershiping_allow_currency_purchase" name="membershiping_allow_currency_purchase" value="yes" <?php checked($item->allow_currency_purchase ?? 1, 1); ?>>
-                            <?php _e('Allow purchase with custom currencies', 'membershiping-inventory'); ?>
-                        </label>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="membershiping_item_properties">
-                            <?php _e('Item Properties', 'membershiping-inventory'); ?>
-                        </label>
-                    </th>
-                    <td>
-                        <label>
-                            <input type="checkbox" id="membershiping_is_tradeable" name="membershiping_is_tradeable" value="yes" <?php checked($item->is_tradeable ?? 1, 1); ?>>
-                            <?php _e('Tradeable', 'membershiping-inventory'); ?>
-                        </label>
-                        <br>
-                        <label>
-                            <input type="checkbox" id="membershiping_is_consumable" name="membershiping_is_consumable" value="yes" <?php checked($item->is_consumable ?? 0, 1); ?>>
-                            <?php _e('Consumable', 'membershiping-inventory'); ?>
-                        </label>
-                        <br>
-                        <label>
-                            <input type="checkbox" id="membershiping_is_stackable" name="membershiping_is_stackable" value="yes" <?php checked($item->is_stackable ?? 1, 1); ?>>
-                            <?php _e('Stackable', 'membershiping-inventory'); ?>
-                        </label>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th scope="row">
-                        <label for="membershiping_quantity_limit">
-                            <?php _e('Quantity Limit', 'membershiping-inventory'); ?>
-                        </label>
-                    </th>
-                    <td>
-                        <input type="number" id="membershiping_quantity_limit" name="membershiping_quantity_limit" value="<?php echo esc_attr($item->quantity_limit ?? ''); ?>" min="0" class="small-text">
-                        <span class="description"><?php _e('Global quantity limit (leave empty for unlimited)', 'membershiping-inventory'); ?></span>
-                    </td>
-                </tr>
-                <?php endif; ?>
-            </table>
-        </div>
-        
-        <script>
-        jQuery(document).ready(function($) {
-            $('#membershiping_is_virtual_item').change(function() {
-                if ($(this).is(':checked')) {
-                    $('.membershiping-inventory-meta-box tr:not(:first)').show();
-                } else {
-                    $('.membershiping-inventory-meta-box tr:not(:first)').hide();
-                }
-            }).trigger('change');
-        });
-        </script>
-        <?php
-    }
-    
-    /**
-     * Save product meta
-     */
-    public function save_product_meta($post_id) {
-        if (!isset($_POST['membershiping_inventory_product_nonce']) || 
-            !wp_verify_nonce($_POST['membershiping_inventory_product_nonce'], 'membershiping_inventory_product_meta')) {
-            return;
-        }
-        
-        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
-            return;
-        }
-        
-        if (!current_user_can('edit_post', $post_id)) {
-            return;
-        }
-        
-        $is_virtual_item = isset($_POST['membershiping_is_virtual_item']) && $_POST['membershiping_is_virtual_item'] === 'yes';
-        
-        update_post_meta($post_id, '_membershiping_is_virtual_item', $is_virtual_item ? 'yes' : 'no');
-        
-        if ($is_virtual_item) {
-            $existing_item = $this->get_item_by_product($post_id);
-            
-            $item_data = array(
-                'item_type' => sanitize_text_field($_POST['membershiping_item_type'] ?? 'collectible'),
-                'rarity' => sanitize_text_field($_POST['membershiping_item_rarity'] ?? 'common'),
-                'exclude_from_shop' => isset($_POST['membershiping_exclude_from_shop']) ? 1 : 0,
-                'allow_currency_purchase' => isset($_POST['membershiping_allow_currency_purchase']) ? 1 : 0,
-                'is_tradeable' => isset($_POST['membershiping_is_tradeable']) ? 1 : 0,
-                'is_consumable' => isset($_POST['membershiping_is_consumable']) ? 1 : 0,
-                'is_stackable' => isset($_POST['membershiping_is_stackable']) ? 1 : 0,
-                'quantity_limit' => !empty($_POST['membershiping_quantity_limit']) ? intval($_POST['membershiping_quantity_limit']) : null
-            );
-            
-            if ($existing_item) {
-                $this->update_item($existing_item->id, $item_data);
-            } else {
-                $this->create_item($post_id, $item_data);
-            }
-        } else {
-            // Remove item if unchecked
-            $existing_item = $this->get_item_by_product($post_id);
-            if ($existing_item && !$this->is_item_in_use($existing_item->id)) {
-                $this->delete_item($existing_item->id);
-            }
-        }
-    }
-    
-    /**
      * Check item purchasability
      */
     public function check_item_purchasability($is_purchasable, $product) {
@@ -850,17 +671,22 @@ class Membershiping_Inventory_Items {
         echo '<h3>' . __('Item Information', 'membershiping-inventory') . '</h3>';
         echo '<p><strong>' . __('Type:', 'membershiping-inventory') . '</strong> ' . ucfirst($item->item_type) . '</p>';
         echo '<p><strong>' . __('Rarity:', 'membershiping-inventory') . '</strong> ' . ucfirst($item->rarity) . '</p>';
-        
+        $stats = array();
         if ($item->stats) {
             $stats = json_decode($item->stats, true);
             if ($stats) {
                 echo '<div class="item-stats">';
                 echo '<strong>' . __('Stats:', 'membershiping-inventory') . '</strong><br>';
                 foreach ($stats as $stat => $value) {
-                    echo '<span class="stat">' . ucfirst($stat) . ': ' . $value . '</span><br>';
+                    if ($stat === 'tags') { continue; }
+                    if (is_array($value) || is_object($value)) { continue; }
+                    echo '<span class="stat">' . esc_html(ucfirst($stat)) . ': ' . esc_html($value) . '</span><br>';
                 }
                 echo '</div>';
             }
+        }
+        if (!empty($stats['tags']) && is_array($stats['tags'])) {
+            echo '<p><strong>' . __('Tags:', 'membershiping-inventory') . '</strong> ' . esc_html(implode(', ', $stats['tags'])) . '</p>';
         }
         
         echo '</div>';

@@ -742,8 +742,3 @@ class Membershiping_Inventory_WooCommerce_Integration {
         }
     }
 }
-
-// Initialize enhanced WooCommerce integration if class exists
-if (class_exists('Membershiping_Inventory_Enhanced_WooCommerce_Integration')) {
-    new Membershiping_Inventory_Enhanced_WooCommerce_Integration();
-}

@@ -152,6 +152,9 @@ class Membershiping_Inventory_Admin {
         wp_enqueue_script('jquery-ui-tabs');
         wp_enqueue_script('jquery-ui-dialog');
         
+        // Enqueue WordPress media library
+        wp_enqueue_media();
+        
         wp_enqueue_script(
             'membershiping-inventory-admin',
             plugins_url('js/admin.js', dirname(__FILE__)),
@@ -690,7 +693,7 @@ class Membershiping_Inventory_Admin {
         echo '<td class="manage-column column-cb check-column"><input type="checkbox" id="cb-select-all-1"></td>';
         echo '<th>' . __('Name', 'membershiping-inventory') . '</th>';
         echo '<th>' . __('Type', 'membershiping-inventory') . '</th>';
-        echo '<th>' . __('Value', 'membershiping-inventory') . '</th>';
+        echo '<th>' . __('Rarity', 'membershiping-inventory') . '</th>';
         echo '<th>' . __('Status', 'membershiping-inventory') . '</th>';
         echo '<th>' . __('Created', 'membershiping-inventory') . '</th>';
         echo '<th>' . __('Actions', 'membershiping-inventory') . '</th>';
@@ -703,8 +706,8 @@ class Membershiping_Inventory_Admin {
                 echo '<tr>';
                 echo '<th scope="row" class="check-column"><input type="checkbox" name="item_ids[]" value="' . $item->id . '"></th>';
                 echo '<td><strong>' . esc_html($item->name) . '</strong></td>';
-                echo '<td>' . esc_html($item->type) . '</td>';
-                echo '<td>' . esc_html($item->value) . '</td>';
+                echo '<td>' . esc_html($item->item_type) . '</td>';
+                echo '<td>' . esc_html($item->rarity) . '</td>';
                 echo '<td><span class="status-' . esc_attr($item->status) . '">' . esc_html(ucfirst($item->status)) . '</span></td>';
                 echo '<td>' . date('Y-m-d H:i', strtotime($item->created_at)) . '</td>';
                 echo '<td>';
@@ -735,30 +738,88 @@ class Membershiping_Inventory_Admin {
             $name = sanitize_text_field($_POST['item_name']);
             $description = sanitize_textarea_field($_POST['item_description']);
             $type = sanitize_text_field($_POST['item_type']);
-            $value = floatval($_POST['item_value']);
+            $rarity = sanitize_text_field($_POST['item_rarity']);
             $status = sanitize_text_field($_POST['item_status']);
-            $metadata = sanitize_textarea_field($_POST['item_metadata']);
+            $base_image = sanitize_url($_POST['item_base_image'] ?? '');
+            $tags = sanitize_text_field($_POST['item_tags'] ?? '');
+            
+            // Process rarity images and names
+            $rarity_images = array();
+            $rarity_names = array();
+            if (isset($_POST['rarity_image']) && is_array($_POST['rarity_image'])) {
+                foreach ($_POST['rarity_image'] as $rarity => $image_url) {
+                    if (!empty($image_url)) {
+                        $rarity_images[sanitize_key($rarity)] = sanitize_url($image_url);
+                    }
+                }
+            }
+            if (isset($_POST['rarity_name']) && is_array($_POST['rarity_name'])) {
+                foreach ($_POST['rarity_name'] as $rarity => $rarity_name) {
+                    if (!empty($rarity_name)) {
+                        $rarity_names[sanitize_key($rarity)] = sanitize_text_field($rarity_name);
+                    }
+                }
+            }
+            
+            // Build metadata JSON
+            $metadata_array = array();
+            if (!empty($_POST['item_metadata'])) {
+                $existing_metadata = json_decode(sanitize_textarea_field($_POST['item_metadata']), true);
+                if (is_array($existing_metadata)) {
+                    $metadata_array = $existing_metadata;
+                }
+            }
+            
+            // Add new fields to metadata
+            if (!empty($base_image)) {
+                $metadata_array['base_image'] = $base_image;
+            }
+            if (!empty($rarity_images)) {
+                $metadata_array['rarity_images'] = $rarity_images;
+            }
+            if (!empty($rarity_names)) {
+                $metadata_array['rarity_names'] = $rarity_names;
+            }
+            if (!empty($tags)) {
+                $metadata_array['tags'] = array_map('trim', explode(',', $tags));
+            }
+            
+            $metadata = !empty($metadata_array) ? json_encode($metadata_array) : '';
+            
+            // Check if table exists
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") === $table_name;
+            if (!$table_exists) {
+                echo '<div class="notice notice-error"><p>' . __('Error: Database table does not exist. Please contact administrator.', 'membershiping-inventory') . '</p></div>';
+                error_log('Membershiping Inventory: Table does not exist - ' . $table_name);
+                return;
+            }
             
             if ($name) {
                 $result = $wpdb->insert(
                     $table_name,
                     array(
+                        'product_id' => 0, // Default for standalone items
                         'name' => $name,
                         'description' => $description,
-                        'type' => $type,
-                        'value' => $value,
+                        'item_type' => $type,
+                        'rarity' => $rarity,
+                        'base_image' => $base_image,
+                        'rarity_images' => !empty($rarity_images) ? json_encode($rarity_images) : null,
+                        'stats' => $metadata,
                         'status' => $status,
-                        'metadata' => $metadata,
                         'created_at' => current_time('mysql'),
                         'updated_at' => current_time('mysql')
                     ),
-                    array('%s', '%s', '%s', '%f', '%s', '%s', '%s', '%s')
+                    array('%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
                 );
                 
                 if ($result) {
                     echo '<div class="notice notice-success"><p>' . __('Item added successfully!', 'membershiping-inventory') . '</p></div>';
                     echo '<script>setTimeout(function() { window.location.href = "' . admin_url('admin.php?page=membershiping-inventory-items') . '"; }, 2000);</script>';
                 } else {
+                    $error_message = $wpdb->last_error ? $wpdb->last_error : 'Unknown database error';
+                    error_log('Membershiping Inventory: Item creation failed - ' . $error_message);
+                    error_log('Membershiping Inventory: Last query - ' . $wpdb->last_query);
                     echo '<div class="notice notice-error"><p>' . __('Error adding item. Please try again.', 'membershiping-inventory') . '</p></div>';
                 }
             } else {
@@ -781,21 +842,93 @@ class Membershiping_Inventory_Admin {
         echo '</tr>';
         
         echo '<tr>';
-        echo '<th scope="row"><label for="item_type">' . __('Item Type', 'membershiping-inventory') . '</label></th>';
+        echo '<th scope="row"><label for="item_base_image">' . __('Base Image', 'membershiping-inventory') . '</label></th>';
         echo '<td>';
-        echo '<select id="item_type" name="item_type">';
-        echo '<option value="virtual">' . __('Virtual Item', 'membershiping-inventory') . '</option>';
-        echo '<option value="consumable">' . __('Consumable', 'membershiping-inventory') . '</option>';
-        echo '<option value="equipment">' . __('Equipment', 'membershiping-inventory') . '</option>';
-        echo '<option value="collectible">' . __('Collectible', 'membershiping-inventory') . '</option>';
-        echo '<option value="nft">' . __('NFT', 'membershiping-inventory') . '</option>';
-        echo '</select>';
+        echo '<input type="text" id="item_base_image" name="item_base_image" class="regular-text" placeholder="' . __('Image URL for this item', 'membershiping-inventory') . '">';
+        echo '<button type="button" class="button membershiping-upload-btn" data-target="#item_base_image" style="margin-left: 5px;">' . __('Upload', 'membershiping-inventory') . '</button>';
+        echo '<button type="button" class="button membershiping-clear-btn" data-target="#item_base_image" style="margin-left: 5px;">' . __('Clear', 'membershiping-inventory') . '</button>';
+        echo '<p class="description">' . __('Main image for this item that will be used when displaying it.', 'membershiping-inventory') . '</p>';
         echo '</td>';
         echo '</tr>';
         
         echo '<tr>';
-        echo '<th scope="row"><label for="item_value">' . __('Value', 'membershiping-inventory') . '</label></th>';
-        echo '<td><input type="number" id="item_value" name="item_value" step="0.01" min="0" class="regular-text"></td>';
+        echo '<th scope="row">' . __('Per-Rarity Images', 'membershiping-inventory') . '</th>';
+        echo '<td>';
+        echo '<table class="widefat striped">';
+        echo '<thead><tr>';
+        echo '<th style="text-align:left; padding-right:10px;">' . __('Rarity', 'membershiping-inventory') . '</th>';
+        echo '<th style="text-align:left; padding-right:10px;">' . __('Name (optional)', 'membershiping-inventory') . '</th>';
+        echo '<th style="text-align:left;">' . __('Image URL (optional)', 'membershiping-inventory') . '</th>';
+        echo '</tr></thead>';
+        echo '<tbody>';
+        $rarities = array('common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic');
+        foreach ($rarities as $rarity) {
+            echo '<tr>';
+            echo '<td><label>' . esc_html(ucfirst($rarity)) . '</label></td>';
+            echo '<td><input type="text" name="rarity_name[' . esc_attr($rarity) . ']" class="regular-text" placeholder="' . __('Optional name override', 'membershiping-inventory') . '"></td>';
+            echo '<td>';
+            echo '<input type="text" name="rarity_image[' . esc_attr($rarity) . ']" class="regular-text" placeholder="' . __('Optional image override', 'membershiping-inventory') . '">';
+            echo '<button type="button" class="button membershiping-upload-btn" data-target="input[name=\'rarity_image[' . esc_attr($rarity) . ']\']" style="margin-left: 5px;">' . __('Upload', 'membershiping-inventory') . '</button>';
+            echo '<button type="button" class="button membershiping-clear-btn" data-target="input[name=\'rarity_image[' . esc_attr($rarity) . ']\']" style="margin-left: 5px;">' . __('Clear', 'membershiping-inventory') . '</button>';
+            echo '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody>';
+        echo '</table>';
+        echo '<p class="description">' . __('Optional names and images per rarity. If set, these will override the base name/image for that rarity.', 'membershiping-inventory') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="item_tags">' . __('Tags', 'membershiping-inventory') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" id="item_tags" name="item_tags" class="regular-text" placeholder="tag1, tag2, tag3">';
+        echo '<p class="description">' . __('Comma-separated tags to help categorize and display item metadata.', 'membershiping-inventory') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="item_type">' . __('Item Type', 'membershiping-inventory') . '</label></th>';
+        echo '<td>';
+        echo '<select id="item_type" name="item_type">';
+        echo '<option value="consumable">' . __('Consumable', 'membershiping-inventory') . '</option>';
+        echo '<option value="equipment">' . __('Equipment', 'membershiping-inventory') . '</option>';
+        echo '<option value="gift_box">' . __('Gift Box', 'membershiping-inventory') . '</option>';
+        echo '<option value="material">' . __('Material', 'membershiping-inventory') . '</option>';
+        echo '<option value="collectible">' . __('Collectible', 'membershiping-inventory') . '</option>';
+        echo '<option value="weapon">' . __('Weapon', 'membershiping-inventory') . '</option>';
+        echo '<option value="armor">' . __('Armor', 'membershiping-inventory') . '</option>';
+        echo '<option value="egg">' . __('Egg', 'membershiping-inventory') . '</option>';
+        echo '<option value="bartrek">' . __('Bartrek', 'membershiping-inventory') . '</option>';
+        echo '<option value="code">' . __('Code', 'membershiping-inventory') . '</option>';
+        echo '<option value="card">' . __('Card', 'membershiping-inventory') . '</option>';
+        echo '<option value="rock">' . __('Rock', 'membershiping-inventory') . '</option>';
+        echo '<option value="herb">' . __('Herb', 'membershiping-inventory') . '</option>';
+        echo '<option value="crystal">' . __('Crystal', 'membershiping-inventory') . '</option>';
+        echo '<option value="rune">' . __('Rune', 'membershiping-inventory') . '</option>';
+        echo '<option value="scroll">' . __('Scroll', 'membershiping-inventory') . '</option>';
+        echo '<option value="potion">' . __('Potion', 'membershiping-inventory') . '</option>';
+        echo '<option value="gem">' . __('Gem', 'membershiping-inventory') . '</option>';
+        echo '<option value="fossil">' . __('Fossil', 'membershiping-inventory') . '</option>';
+        echo '<option value="orb">' . __('Orb', 'membershiping-inventory') . '</option>';
+        echo '<option value="tome">' . __('Tome', 'membershiping-inventory') . '</option>';
+        echo '</select>';
+        echo '<p class="description">' . __('All items are NFTs by default. Choose the functional category for this item.', 'membershiping-inventory') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="item_rarity">' . __('Rarity', 'membershiping-inventory') . '</label></th>';
+        echo '<td>';
+        echo '<select id="item_rarity" name="item_rarity">';
+        echo '<option value="common">' . __('Common', 'membershiping-inventory') . '</option>';
+        echo '<option value="uncommon">' . __('Uncommon', 'membershiping-inventory') . '</option>';
+        echo '<option value="rare">' . __('Rare', 'membershiping-inventory') . '</option>';
+        echo '<option value="epic">' . __('Epic', 'membershiping-inventory') . '</option>';
+        echo '<option value="legendary">' . __('Legendary', 'membershiping-inventory') . '</option>';
+        echo '<option value="mythic">' . __('Mythic', 'membershiping-inventory') . '</option>';
+        echo '</select>';
+        echo '</td>';
         echo '</tr>';
         
         echo '<tr>';
@@ -821,6 +954,37 @@ class Membershiping_Inventory_Admin {
         echo '</p>';
         
         echo '</form>';
+        
+        // Add media uploader JavaScript
+        echo '<script>
+        jQuery(document).ready(function($) {
+            function openMediaLibrary(targetSelector) {
+                var frame = wp.media({
+                    title: "' . esc_js(__('Select or Upload Image', 'membershiping-inventory')) . '",
+                    button: { text: "' . esc_js(__('Use this image', 'membershiping-inventory')) . '" },
+                    multiple: false
+                });
+                frame.on("select", function() {
+                    var attachment = frame.state().get("selection").first().toJSON();
+                    $(targetSelector).val(attachment.url).trigger("change");
+                });
+                frame.open();
+            }
+            
+            $(".membershiping-upload-btn").on("click", function(e) {
+                e.preventDefault();
+                var target = $(this).data("target");
+                openMediaLibrary(target);
+            });
+            
+            $(".membershiping-clear-btn").on("click", function(e) {
+                e.preventDefault();
+                var target = $(this).data("target");
+                $(target).val("");
+            });
+        });
+        </script>';
+        
         echo '</div>';
     }
     
@@ -854,9 +1018,53 @@ class Membershiping_Inventory_Admin {
             $name = sanitize_text_field($_POST['item_name']);
             $description = sanitize_textarea_field($_POST['item_description']);
             $type = sanitize_text_field($_POST['item_type']);
-            $value = floatval($_POST['item_value']);
+            $rarity = sanitize_text_field($_POST['item_rarity']);
             $status = sanitize_text_field($_POST['item_status']);
-            $metadata = sanitize_textarea_field($_POST['item_metadata']);
+            $base_image = sanitize_url($_POST['item_base_image'] ?? '');
+            $tags = sanitize_text_field($_POST['item_tags'] ?? '');
+            
+            // Process rarity images and names
+            $rarity_images = array();
+            $rarity_names = array();
+            if (isset($_POST['rarity_image']) && is_array($_POST['rarity_image'])) {
+                foreach ($_POST['rarity_image'] as $rarity => $image_url) {
+                    if (!empty($image_url)) {
+                        $rarity_images[sanitize_key($rarity)] = sanitize_url($image_url);
+                    }
+                }
+            }
+            if (isset($_POST['rarity_name']) && is_array($_POST['rarity_name'])) {
+                foreach ($_POST['rarity_name'] as $rarity => $rarity_name) {
+                    if (!empty($rarity_name)) {
+                        $rarity_names[sanitize_key($rarity)] = sanitize_text_field($rarity_name);
+                    }
+                }
+            }
+            
+            // Build metadata JSON
+            $metadata_array = array();
+            if (!empty($_POST['item_metadata'])) {
+                $existing_metadata = json_decode(sanitize_textarea_field($_POST['item_metadata']), true);
+                if (is_array($existing_metadata)) {
+                    $metadata_array = $existing_metadata;
+                }
+            }
+            
+            // Add new fields to metadata
+            if (!empty($base_image)) {
+                $metadata_array['base_image'] = $base_image;
+            }
+            if (!empty($rarity_images)) {
+                $metadata_array['rarity_images'] = $rarity_images;
+            }
+            if (!empty($rarity_names)) {
+                $metadata_array['rarity_names'] = $rarity_names;
+            }
+            if (!empty($tags)) {
+                $metadata_array['tags'] = array_map('trim', explode(',', $tags));
+            }
+            
+            $metadata = !empty($metadata_array) ? json_encode($metadata_array) : '';
             
             if ($name) {
                 $result = $wpdb->update(
@@ -864,14 +1072,16 @@ class Membershiping_Inventory_Admin {
                     array(
                         'name' => $name,
                         'description' => $description,
-                        'type' => $type,
-                        'value' => $value,
+                        'item_type' => $type,
+                        'rarity' => $rarity,
+                        'base_image' => $base_image,
+                        'rarity_images' => !empty($rarity_images) ? json_encode($rarity_images) : null,
+                        'stats' => $metadata,
                         'status' => $status,
-                        'metadata' => $metadata,
                         'updated_at' => current_time('mysql')
                     ),
                     array('id' => $item_id),
-                    array('%s', '%s', '%s', '%f', '%s', '%s', '%s'),
+                    array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'),
                     array('%d')
                 );
                 
@@ -905,17 +1115,54 @@ class Membershiping_Inventory_Admin {
         echo '<th scope="row"><label for="item_type">' . __('Item Type', 'membershiping-inventory') . '</label></th>';
         echo '<td>';
         echo '<select id="item_type" name="item_type">';
-        $types = array('virtual' => __('Virtual Item', 'membershiping-inventory'), 'consumable' => __('Consumable', 'membershiping-inventory'), 'equipment' => __('Equipment', 'membershiping-inventory'), 'collectible' => __('Collectible', 'membershiping-inventory'), 'nft' => __('NFT', 'membershiping-inventory'));
+        $types = array(
+            'consumable' => __('Consumable', 'membershiping-inventory'), 
+            'equipment' => __('Equipment', 'membershiping-inventory'), 
+            'gift_box' => __('Gift Box', 'membershiping-inventory'),
+            'material' => __('Material', 'membershiping-inventory'),
+            'collectible' => __('Collectible', 'membershiping-inventory'),
+            'weapon' => __('Weapon', 'membershiping-inventory'),
+            'armor' => __('Armor', 'membershiping-inventory'),
+            'egg' => __('Egg', 'membershiping-inventory'),
+            'bartrek' => __('Bartrek', 'membershiping-inventory'),
+            'code' => __('Code', 'membershiping-inventory'),
+            'card' => __('Card', 'membershiping-inventory'),
+            'rock' => __('Rock', 'membershiping-inventory'),
+            'herb' => __('Herb', 'membershiping-inventory'),
+            'crystal' => __('Crystal', 'membershiping-inventory'),
+            'rune' => __('Rune', 'membershiping-inventory'),
+            'scroll' => __('Scroll', 'membershiping-inventory'),
+            'potion' => __('Potion', 'membershiping-inventory'),
+            'gem' => __('Gem', 'membershiping-inventory'),
+            'fossil' => __('Fossil', 'membershiping-inventory'),
+            'orb' => __('Orb', 'membershiping-inventory'),
+            'tome' => __('Tome', 'membershiping-inventory')
+        );
         foreach ($types as $value => $label) {
-            echo '<option value="' . $value . '"' . selected($item->type, $value, false) . '>' . $label . '</option>';
+            echo '<option value="' . $value . '"' . selected($item->item_type, $value, false) . '>' . $label . '</option>';
         }
         echo '</select>';
+        echo '<p class="description">' . __('All items are NFTs by default. Choose the functional category for this item.', 'membershiping-inventory') . '</p>';
         echo '</td>';
         echo '</tr>';
         
         echo '<tr>';
-        echo '<th scope="row"><label for="item_value">' . __('Value', 'membershiping-inventory') . '</label></th>';
-        echo '<td><input type="number" id="item_value" name="item_value" step="0.01" min="0" class="regular-text" value="' . esc_attr($item->value) . '"></td>';
+        echo '<th scope="row"><label for="item_rarity">' . __('Rarity', 'membershiping-inventory') . '</label></th>';
+        echo '<td>';
+        echo '<select id="item_rarity" name="item_rarity">';
+        $rarities = array(
+            'common' => __('Common', 'membershiping-inventory'),
+            'uncommon' => __('Uncommon', 'membershiping-inventory'),
+            'rare' => __('Rare', 'membershiping-inventory'),
+            'epic' => __('Epic', 'membershiping-inventory'),
+            'legendary' => __('Legendary', 'membershiping-inventory'),
+            'mythic' => __('Mythic', 'membershiping-inventory')
+        );
+        foreach ($rarities as $value => $label) {
+            echo '<option value="' . $value . '"' . selected($item->rarity, $value, false) . '>' . $label . '</option>';
+        }
+        echo '</select>';
+        echo '</td>';
         echo '</tr>';
         
         echo '<tr>';
