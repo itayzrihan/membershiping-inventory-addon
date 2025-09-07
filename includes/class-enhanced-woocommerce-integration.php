@@ -32,12 +32,21 @@ class Membershiping_Inventory_Enhanced_WooCommerce_Integration {
             return;
         }
         
-        $this->currencies = new Membershiping_Inventory_Currencies();
-        $this->items = new Membershiping_Inventory_Items();
-        $this->database = new Membershiping_Inventory_Database();
-        $this->security = new Membershiping_Inventory_Security();
+        // Initialize dependencies - use safe loading
+        try {
+            $this->currencies = new Membershiping_Inventory_Currencies();
+            $this->items = new Membershiping_Inventory_Items();
+            $this->database = new Membershiping_Inventory_Database();
+            $this->security = new Membershiping_Inventory_Security();
+            
+            error_log('Membershiping Inventory Enhanced WooCommerce: Successfully initialized dependencies');
+        } catch (Exception $e) {
+            error_log('Membershiping Inventory Enhanced WooCommerce: Failed to initialize dependencies - ' . $e->getMessage());
+            return;
+        }
         
         $this->init_hooks();
+        error_log('Membershiping Inventory Enhanced WooCommerce: Hooks initialized successfully');
     }
     
     /**
@@ -45,13 +54,18 @@ class Membershiping_Inventory_Enhanced_WooCommerce_Integration {
      */
     private function init_hooks() {
         // Admin meta boxes for currency pricing and item-based pricing
-        add_action('woocommerce_product_options_general_product_data', array($this, 'add_enhanced_pricing_fields'));
-        add_action('woocommerce_process_product_meta', array($this, 'save_enhanced_pricing_fields'));
+        add_action('woocommerce_product_options_general_product_data', array($this, 'add_enhanced_pricing_fields'), 20);
+        add_action('woocommerce_process_product_meta', array($this, 'save_enhanced_pricing_fields'), 20);
         
         // Frontend price display modifications
         add_filter('woocommerce_get_price_html', array($this, 'modify_price_display_for_currencies'), 25, 2);
         add_action('woocommerce_single_product_summary', array($this, 'display_currency_payment_options'), 30);
         add_action('woocommerce_single_product_summary', array($this, 'display_item_based_pricing'), 35);
+        
+        // Cart and checkout display
+        add_action('woocommerce_cart_item_name', array($this, 'display_currency_prices_in_cart'), 10, 3);
+        add_action('woocommerce_review_order_before_payment', array($this, 'display_currency_checkout_options'));
+        add_action('woocommerce_checkout_before_order_review', array($this, 'display_currency_checkout_summary'));
         
         // Cart and checkout modifications for currency payments
         add_filter('woocommerce_add_to_cart_validation', array($this, 'validate_currency_payment'), 15, 3);
@@ -76,6 +90,8 @@ class Membershiping_Inventory_Enhanced_WooCommerce_Integration {
      */
     public function add_enhanced_pricing_fields() {
         global $post;
+        
+        error_log('Membershiping Inventory: add_enhanced_pricing_fields called for post ID: ' . ($post ? $post->ID : 'unknown'));
         
         echo '<div class="options_group">';
         echo '<h3>' . __('Enhanced Inventory Pricing', 'membershiping-inventory') . '</h3>';
@@ -709,7 +725,200 @@ class Membershiping_Inventory_Enhanced_WooCommerce_Integration {
         </script>
         <?php
     }
+    
+    /**
+     * Display currency prices in cart items
+     */
+    public function display_currency_prices_in_cart($product_name, $cart_item, $cart_item_key) {
+        if (!isset($cart_item['product_id'])) {
+            return $product_name;
+        }
+        
+        $product_id = $cart_item['product_id'];
+        $allow_currency_payment = get_post_meta($product_id, '_membershiping_allow_currency_payment', true);
+        
+        if ($allow_currency_payment !== 'yes') {
+            return $product_name;
+        }
+        
+        $currency_prices = get_post_meta($product_id, '_membershiping_currency_prices', true);
+        $currency_prices = $currency_prices ? json_decode($currency_prices, true) : array();
+        
+        if (empty($currency_prices)) {
+            return $product_name;
+        }
+        
+        $currency_info = '<div class="cart-currency-options" style="margin-top: 5px;">';
+        foreach ($currency_prices as $price_data) {
+            $currency = $this->currencies->get_currency($price_data['currency_id']);
+            if ($currency) {
+                $currency_info .= '<small style="display: block; color: #1976d2;">';
+                $currency_info .= sprintf(__('Or pay %s %s%s', 'membershiping-inventory'), 
+                    number_format($price_data['price'], 2), 
+                    esc_html($currency->symbol), 
+                    esc_html($currency->name)
+                );
+                $currency_info .= '</small>';
+            }
+        }
+        $currency_info .= '</div>';
+        
+        return $product_name . $currency_info;
+    }
+    
+    /**
+     * Display currency options before payment methods on checkout
+     */
+    public function display_currency_checkout_options() {
+        if (is_admin()) {
+            return;
+        }
+        
+        $cart = WC()->cart;
+        if (!$cart || $cart->is_empty()) {
+            return;
+        }
+        
+        $has_currency_products = false;
+        $currency_products = array();
+        
+        foreach ($cart->get_cart() as $cart_item_key => $cart_item) {
+            $product_id = $cart_item['product_id'];
+            $allow_currency_payment = get_post_meta($product_id, '_membershiping_allow_currency_payment', true);
+            
+            if ($allow_currency_payment === 'yes') {
+                $has_currency_products = true;
+                $currency_prices = get_post_meta($product_id, '_membershiping_currency_prices', true);
+                $currency_prices = $currency_prices ? json_decode($currency_prices, true) : array();
+                
+                if (!empty($currency_prices)) {
+                    $currency_products[$product_id] = array(
+                        'name' => $cart_item['data']->get_name(),
+                        'quantity' => $cart_item['quantity'],
+                        'currency_prices' => $currency_prices
+                    );
+                }
+            }
+        }
+        
+        if (!$has_currency_products) {
+            return;
+        }
+        
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            echo '<div class="checkout-currency-notice">';
+            echo '<p>' . __('Login to see currency payment options', 'membershiping-inventory') . '</p>';
+            echo '</div>';
+            return;
+        }
+        
+        ?>
+        <div class="checkout-currency-options">
+            <h3><?php _e('Currency Payment Options', 'membershiping-inventory'); ?></h3>
+            <p class="description"><?php _e('You can pay for eligible items using your currency balances instead of regular payment.', 'membershiping-inventory'); ?></p>
+            
+            <?php foreach ($currency_products as $product_id => $product_data): ?>
+                <div class="currency-product-option" style="margin: 15px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <h4><?php echo esc_html($product_data['name']); ?> (×<?php echo $product_data['quantity']; ?>)</h4>
+                    
+                    <?php foreach ($product_data['currency_prices'] as $price_data): ?>
+                        <?php
+                        $currency = $this->currencies->get_currency($price_data['currency_id']);
+                        if (!$currency) continue;
+                        
+                        $total_cost = $price_data['price'] * $product_data['quantity'];
+                        $user_balance = $this->currencies->get_user_balance($user_id, $currency->id);
+                        $can_afford = $user_balance >= $total_cost;
+                        ?>
+                        <div class="currency-checkout-option" style="margin: 5px 0;">
+                            <label>
+                                <input type="checkbox" 
+                                       name="use_currency_payment[<?php echo $product_id; ?>]" 
+                                       value="<?php echo $currency->id; ?>"
+                                       data-total-cost="<?php echo $total_cost; ?>"
+                                       <?php echo $can_afford ? '' : 'disabled'; ?> />
+                                <?php echo sprintf(__('Pay %s %s%s (Total: %s)', 'membershiping-inventory'),
+                                    number_format($price_data['price'], 2),
+                                    esc_html($currency->symbol),
+                                    esc_html($currency->name),
+                                    number_format($total_cost, 2)
+                                ); ?>
+                            </label>
+                            <small style="display: block; margin-left: 20px; color: <?php echo $can_afford ? '#2e7d32' : '#d32f2f'; ?>;">
+                                <?php echo sprintf(__('Your balance: %s %s%s', 'membershiping-inventory'),
+                                    number_format($user_balance, 2),
+                                    esc_html($currency->symbol),
+                                    esc_html($currency->name)
+                                ); ?>
+                                <?php if (!$can_afford): ?>
+                                    - <?php _e('Insufficient funds', 'membershiping-inventory'); ?>
+                                <?php endif; ?>
+                            </small>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php
+    }
+    
+    /**
+     * Display currency checkout summary
+     */
+    public function display_currency_checkout_summary() {
+        // This will show a summary of currency payments before order review
+        echo '<div id="currency-payment-summary" style="display: none; margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">';
+        echo '<h4>' . __('Currency Payment Summary', 'membershiping-inventory') . '</h4>';
+        echo '<div id="currency-summary-content"></div>';
+        echo '</div>';
+        
+        // Add JavaScript to handle currency payment selection
+        ?>
+        <script>
+        jQuery(document).ready(function($) {
+            function updateCurrencyPaymentSummary() {
+                var summary = $('#currency-payment-summary');
+                var content = $('#currency-summary-content');
+                var selectedPayments = [];
+                
+                $('.currency-checkout-option input[type="checkbox"]:checked').each(function() {
+                    var label = $(this).parent().text().trim();
+                    var cost = $(this).data('total-cost');
+                    selectedPayments.push({
+                        label: label,
+                        cost: parseFloat(cost)
+                    });
+                });
+                
+                if (selectedPayments.length > 0) {
+                    var html = '<ul>';
+                    var totalReduction = 0;
+                    
+                    selectedPayments.forEach(function(payment) {
+                        html += '<li>' + payment.label + '</li>';
+                        totalReduction += payment.cost;
+                    });
+                    
+                    html += '</ul>';
+                    html += '<p><strong><?php _e("Order total reduction:", "membershiping-inventory"); ?> ' + wc_price_format(totalReduction) + '</strong></p>';
+                    
+                    content.html(html);
+                    summary.show();
+                } else {
+                    summary.hide();
+                }
+            }
+            
+            // Update summary when currency options change
+            $(document).on('change', '.currency-checkout-option input[type="checkbox"]', updateCurrencyPaymentSummary);
+            
+            // Format price for display
+            function wc_price_format(amount) {
+                return '<?php echo get_woocommerce_currency_symbol(); ?>' + amount.toFixed(2);
+            }
+        });
+        </script>
+        <?php
+    }
 }
-
-// Initialize the enhanced integration
-new Membershiping_Inventory_Enhanced_WooCommerce_Integration();
