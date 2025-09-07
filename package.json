@@ -1,0 +1,12 @@
+{
+  "name": "membershiping-inventory-addon",
+  "version": "1.0.0",
+  "description": "Membershiping Inventory Management Addon",
+  "main": "membershiping-inventory.php",
+  "scripts": {
+    "zip": "node create-zip.js"
+  },
+  "devDependencies": {
+    "archiver": "^6.0.2"
+  }
+}
