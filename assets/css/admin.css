@@ -1,0 +1,814 @@
+/**
+ * Admin CSS for Membershiping Inventory
+ * Professional and responsive admin interface styling
+ */
+
+/* ==========================================================================
+   Admin Layout & Structure
+   ========================================================================== */
+
+.membershiping-inventory-admin {
+    max-width: 1200px;
+}
+
+.dashboard-widgets-wrap {
+    margin-top: 20px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.stat-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.stat-card h3 {
+    font-size: 32px;
+    font-weight: 600;
+    color: #1d2327;
+    margin: 0 0 10px 0;
+    line-height: 1.2;
+}
+
+.stat-card p {
+    color: #646970;
+    font-size: 14px;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   Chart Containers
+   ========================================================================== */
+
+.analytics-charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.chart-container {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.chart-container h3 {
+    margin: 0 0 20px 0;
+    color: #1d2327;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.chart-container canvas {
+    max-width: 100%;
+    height: auto !important;
+}
+
+/* ==========================================================================
+   Analytics Filters
+   ========================================================================== */
+
+.analytics-filters {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.analytics-filters label {
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.analytics-filters select {
+    min-width: 150px;
+}
+
+/* ==========================================================================
+   Data Tables
+   ========================================================================== */
+
+.wp-list-table.inventory-table {
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.inventory-table th {
+    background: #f6f7f7;
+    border-bottom: 1px solid #c3c4c7;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.inventory-table .rarity-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.rarity-common { background: #94a3b8; color: #1e293b; }
+.rarity-uncommon { background: #10b981; color: #fff; }
+.rarity-rare { background: #3b82f6; color: #fff; }
+.rarity-epic { background: #8b5cf6; color: #fff; }
+.rarity-legendary { background: #f59e0b; color: #fff; }
+.rarity-mythic { background: #ef4444; color: #fff; }
+
+.item-description {
+    color: #646970;
+    font-size: 12px;
+    margin-top: 5px;
+    font-style: italic;
+}
+
+/* ==========================================================================
+   Form Styling
+   ========================================================================== */
+
+.inventory-form {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.inventory-form .form-table th {
+    font-weight: 600;
+    color: #1d2327;
+    width: 200px;
+}
+
+.inventory-form .form-table td {
+    padding: 15px 10px;
+}
+
+.inventory-form input[type="text"],
+.inventory-form input[type="number"],
+.inventory-form input[type="email"],
+.inventory-form select,
+.inventory-form textarea {
+    width: 100%;
+    max-width: 400px;
+}
+
+.inventory-form textarea {
+    height: 80px;
+    resize: vertical;
+}
+
+/* ==========================================================================
+   Quick Actions
+   ========================================================================== */
+
+.quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.quick-actions .button {
+    min-width: 120px;
+    text-align: center;
+}
+
+/* ==========================================================================
+   System Health
+   ========================================================================== */
+
+.system-health {
+    padding: 20px 0;
+}
+
+.health-good,
+.health-warning,
+.health-error {
+    padding: 10px 15px;
+    margin: 5px 0;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.health-good {
+    background: #d1fae5;
+    border-left: 4px solid #10b981;
+    color: #065f46;
+}
+
+.health-warning {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    color: #92400e;
+}
+
+.health-error {
+    background: #fee2e2;
+    border-left: 4px solid #ef4444;
+    color: #991b1b;
+}
+
+.health-icon {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+/* ==========================================================================
+   User Management
+   ========================================================================== */
+
+.user-search {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.user-search h2 {
+    margin-top: 0;
+    color: #1d2327;
+}
+
+.user-inventory-display {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.inventory-section {
+    margin-bottom: 30px;
+}
+
+.inventory-section h3 {
+    color: #1d2327;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.inventory-item {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 15px;
+    position: relative;
+}
+
+.inventory-item .item-name {
+    font-weight: 600;
+    color: #1d2327;
+    margin-bottom: 5px;
+}
+
+.inventory-item .item-quantity {
+    color: #646970;
+    font-size: 14px;
+}
+
+.inventory-item .item-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 5px;
+}
+
+.inventory-item .item-actions .button {
+    font-size: 12px;
+    padding: 2px 8px;
+    height: auto;
+    line-height: 1.4;
+}
+
+/* ==========================================================================
+   Bulk Operations
+   ========================================================================== */
+
+.bulk-operations {
+    margin-top: 30px;
+}
+
+.bulk-operations .postbox {
+    margin-bottom: 20px;
+}
+
+.bulk-operations h3 {
+    color: #1d2327;
+    margin-bottom: 15px;
+}
+
+.bulk-operations select[multiple] {
+    height: 150px;
+}
+
+/* ==========================================================================
+   Tools & Diagnostics
+   ========================================================================== */
+
+.system-tools .postbox {
+    margin-bottom: 20px;
+}
+
+.tool-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.diagnostic-results {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 20px;
+}
+
+.diagnostic-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.diagnostic-item:last-child {
+    border-bottom: none;
+}
+
+.diagnostic-status {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.diagnostic-status.pass {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.diagnostic-status.warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.diagnostic-status.fail {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.diagnostic-status.info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+/* ==========================================================================
+   Reset Tools
+   ========================================================================== */
+
+.reset-tools {
+    padding: 20px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 4px;
+    margin-top: 15px;
+}
+
+.reset-tools .button {
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+/* ==========================================================================
+   Loading States
+   ========================================================================== */
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999999;
+}
+
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Responsive Design
+   ========================================================================== */
+
+@media (max-width: 782px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .analytics-charts {
+        grid-template-columns: 1fr;
+    }
+    
+    .analytics-filters {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .quick-actions {
+        flex-direction: column;
+    }
+    
+    .quick-actions .button {
+        width: 100%;
+    }
+    
+    .tool-actions {
+        flex-direction: column;
+    }
+    
+    .tool-actions .button {
+        width: 100%;
+    }
+    
+    .inventory-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .membershiping-inventory-admin {
+        margin: 10px;
+    }
+    
+    .stat-card {
+        padding: 15px;
+    }
+    
+    .stat-card h3 {
+        font-size: 24px;
+    }
+    
+    .chart-container {
+        padding: 15px;
+    }
+    
+    .inventory-form {
+        padding: 15px;
+    }
+}
+
+/* ==========================================================================
+   Print Styles
+   ========================================================================== */
+
+@media print {
+    .membershiping-inventory-admin .button,
+    .membershiping-inventory-admin .quick-actions,
+    .membershiping-inventory-admin .tool-actions {
+        display: none;
+    }
+    
+    .membershiping-inventory-admin .postbox {
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+    
+    .membershiping-inventory-admin .chart-container {
+        page-break-inside: avoid;
+    }
+}
+
+/* ==========================================================================
+   Accessibility Enhancements
+   ========================================================================== */
+
+.membershiping-inventory-admin button:focus,
+.membershiping-inventory-admin input:focus,
+.membershiping-inventory-admin select:focus,
+.membershiping-inventory-admin textarea:focus {
+    outline: 2px solid #2271b1;
+    outline-offset: 1px;
+}
+
+.membershiping-inventory-admin .sr-only {
+    position: absolute !important;
+    clip: rect(1px, 1px, 1px, 1px);
+    word-wrap: normal !important;
+    overflow: hidden;
+}
+
+.membershiping-inventory-admin [aria-hidden="true"] {
+    display: none;
+}
+
+/* ==========================================================================
+   Dark Mode Support
+   ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+    .membershiping-inventory-admin .stat-card {
+        background: #1e1e1e;
+        border-color: #3c3c3c;
+        color: #fff;
+    }
+    
+    .membershiping-inventory-admin .stat-card h3 {
+        color: #fff;
+    }
+    
+    .membershiping-inventory-admin .chart-container {
+        background: #1e1e1e;
+        border-color: #3c3c3c;
+    }
+    
+    .membershiping-inventory-admin .inventory-form {
+        background: #1e1e1e;
+        border-color: #3c3c3c;
+    }
+}
+
+/* ==========================================================================
+   Animation & Transitions
+   ========================================================================== */
+
+.membershiping-inventory-admin * {
+    transition: all 0.2s ease;
+}
+
+.membershiping-inventory-admin .button:hover {
+    transform: translateY(-1px);
+}
+
+.membershiping-inventory-admin .stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.membershiping-inventory-admin .inventory-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* ==========================================================================
+   User Inventory Management Modal
+   ========================================================================== */
+
+.membershiping-modal {
+    display: none;
+    position: fixed;
+    z-index: 100000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.membershiping-modal-content {
+    background-color: #fff;
+    margin: 5% auto;
+    padding: 0;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.membershiping-modal-header {
+    padding: 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.membershiping-modal-header h2 {
+    margin: 0;
+    color: #1d2327;
+    font-size: 20px;
+}
+
+.membershiping-modal-close {
+    color: #646970;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+.membershiping-modal-close:hover {
+    color: #d63384;
+}
+
+.membershiping-modal-body {
+    padding: 20px;
+}
+
+.membershiping-modal-footer {
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    border-radius: 0 0 8px 8px;
+    text-align: right;
+}
+
+.inventory-section {
+    margin-bottom: 30px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.inventory-section h3 {
+    margin: 0;
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    color: #1d2327;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.current-items,
+.current-currencies {
+    padding: 20px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.current-items h4,
+.current-currencies h4 {
+    margin: 0 0 15px 0;
+    color: #1d2327;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.add-items,
+.add-currency {
+    padding: 20px;
+    background: #f8f9fa;
+}
+
+.add-items h4,
+.add-currency h4 {
+    margin: 0 0 15px 0;
+    color: #1d2327;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.add-items select,
+.add-currency select,
+.add-items input,
+.add-currency input {
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+.update-item-quantity,
+.update-currency-balance {
+    width: 80px;
+}
+
+.inventory-section table {
+    margin: 0;
+    border: none;
+}
+
+.inventory-section table th,
+.inventory-section table td {
+    padding: 12px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.inventory-section table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.inventory-section table tr:last-child td {
+    border-bottom: none;
+}
+
+.inventory-section table .button {
+    margin-right: 5px;
+    font-size: 12px;
+    padding: 4px 8px;
+    height: auto;
+    line-height: 1.4;
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+    .membershiping-modal-content {
+        width: 95%;
+        margin: 2% auto;
+        max-height: 95vh;
+    }
+    
+    .membershiping-modal-header {
+        padding: 15px;
+    }
+    
+    .membershiping-modal-body {
+        padding: 15px;
+    }
+    
+    .add-items select,
+    .add-currency select {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    .inventory-section table {
+        font-size: 14px;
+    }
+    
+    .inventory-section table th,
+    .inventory-section table td {
+        padding: 8px;
+    }
+}
+
+/* ==========================================================================
+   Custom Scrollbars
+   ========================================================================== */
+
+.membershiping-inventory-admin ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.membershiping-inventory-admin ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.membershiping-inventory-admin ::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.membershiping-inventory-admin ::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}

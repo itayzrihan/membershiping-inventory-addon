@@ -1,0 +1,313 @@
+/**
+ * Enhanced WooCommerce Integration Styles
+ * 
+ * Styles for currency payment options and item-based pricing display
+ */
+
+/* Currency Payment Options */
+.membershiping-currency-payment-options {
+    margin: 20px 0;
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    background: #f9f9f9;
+}
+
+.membershiping-currency-payment-options h4 {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.currency-payment-option {
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    transition: all 0.3s ease;
+}
+
+.currency-payment-option:hover {
+    border-color: #1976d2;
+    box-shadow: 0 2px 4px rgba(25, 118, 210, 0.1);
+}
+
+.currency-payment-option.insufficient-funds {
+    background: #ffeaa7;
+    border-color: #fdcb6e;
+}
+
+.currency-payment-option input[type="radio"] {
+    margin-right: 10px;
+}
+
+.currency-option-label {
+    font-weight: 500;
+    color: #333;
+}
+
+.currency-balance {
+    color: #666;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.currency-payment-notice {
+    margin: 15px 0;
+    padding: 10px;
+    border: 1px solid #2196f3;
+    border-radius: 4px;
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+/* Item-Based Special Pricing */
+.membershiping-item-based-pricing {
+    margin: 20px 0;
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    background: #f9f9f9;
+}
+
+.membershiping-item-based-pricing h4 {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.item-pricing-qualified {
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: #e8f5e8;
+    border: 1px solid #4caf50;
+    border-radius: 4px;
+    color: #2e7d32;
+}
+
+.item-pricing-unqualified {
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: #fff3e0;
+    border: 1px solid #ff9800;
+    border-radius: 4px;
+    color: #f57c00;
+}
+
+.item-pricing-login-required {
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: #f5f5f5;
+    border: 1px solid #bdbdbd;
+    border-radius: 4px;
+    color: #666;
+}
+
+/* Price Display Enhancements */
+.membershiping-currency-price {
+    display: block;
+    margin-top: 5px;
+    font-size: 14px;
+    color: #1976d2;
+    font-weight: 500;
+}
+
+/* Tooltips for Item Pricing */
+.item-pricing-info {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+}
+
+.pricing-tooltip {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    display: none;
+    min-width: 250px;
+    padding: 10px;
+    background: #333;
+    color: #fff;
+    border-radius: 4px;
+    font-size: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.pricing-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 10px;
+    width: 0;
+    height: 0;
+    border: 5px solid transparent;
+    border-bottom-color: #333;
+}
+
+.pricing-breakdown {
+    margin: 0;
+}
+
+.pricing-item {
+    margin: 5px 0;
+    padding: 5px;
+    border-bottom: 1px solid #555;
+}
+
+.pricing-item:last-child {
+    border-bottom: none;
+}
+
+.pricing-item.qualified {
+    background: rgba(76, 175, 80, 0.2);
+}
+
+.qualified-badge {
+    color: #4caf50;
+    font-weight: bold;
+}
+
+/* Admin Interface Styles */
+.membershiping-currency-pricing-section,
+.membershiping-item-pricing-section {
+    margin: 15px 0;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #f9f9f9;
+}
+
+.membershiping-currency-pricing-section table,
+.membershiping-item-pricing-section table {
+    margin: 10px 0;
+}
+
+.membershiping-currency-pricing-section th,
+.membershiping-item-pricing-section th {
+    background: #f0f0f0;
+    padding: 8px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.membershiping-currency-pricing-section td,
+.membershiping-item-pricing-section td {
+    padding: 8px;
+    vertical-align: middle;
+}
+
+.currency-select,
+.item-select {
+    width: 100%;
+    min-width: 150px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .membershiping-currency-payment-options,
+    .membershiping-item-based-pricing {
+        margin: 15px 0;
+        padding: 10px;
+    }
+    
+    .currency-payment-option {
+        padding: 8px;
+    }
+    
+    .pricing-tooltip {
+        min-width: 200px;
+        left: -50px;
+    }
+    
+    .membershiping-currency-pricing-section table,
+    .membershiping-item-pricing-section table {
+        font-size: 14px;
+    }
+    
+    .membershiping-currency-pricing-section th,
+    .membershiping-currency-pricing-section td,
+    .membershiping-item-pricing-section th,
+    .membershiping-item-pricing-section td {
+        padding: 6px;
+    }
+}
+
+/* Animation Effects */
+.currency-payment-option,
+.item-pricing-qualified,
+.item-pricing-unqualified {
+    opacity: 0;
+    animation: fadeInUp 0.5s ease forwards;
+}
+
+.currency-payment-option:nth-child(1) { animation-delay: 0.1s; }
+.currency-payment-option:nth-child(2) { animation-delay: 0.2s; }
+.currency-payment-option:nth-child(3) { animation-delay: 0.3s; }
+
+.item-pricing-qualified:nth-child(1) { animation-delay: 0.1s; }
+.item-pricing-qualified:nth-child(2) { animation-delay: 0.2s; }
+.item-pricing-unqualified:nth-child(1) { animation-delay: 0.1s; }
+.item-pricing-unqualified:nth-child(2) { animation-delay: 0.2s; }
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Loading States */
+.checking-balance {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #1976d2;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-left: 5px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error States */
+.currency-balance-error {
+    color: #d32f2f;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.payment-validation-error {
+    margin: 10px 0;
+    padding: 10px;
+    background: #ffebee;
+    border: 1px solid #f44336;
+    border-radius: 4px;
+    color: #d32f2f;
+}
+
+/* Success States */
+.payment-success {
+    margin: 10px 0;
+    padding: 10px;
+    background: #e8f5e8;
+    border: 1px solid #4caf50;
+    border-radius: 4px;
+    color: #2e7d32;
+}
