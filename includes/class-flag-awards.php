@@ -15,12 +15,26 @@ class Membershiping_Inventory_Flag_Awards {
     private $security;
     private $items;
     
+    /**
+     * Track if meta boxes were already added
+     */
+    private static $meta_boxes_added = false;
+    
     public function __construct() {
         global $wpdb;
         $this->wpdb = $wpdb;
         $this->database = new Membershiping_Inventory_Database();
         $this->security = Membershiping_Inventory_Security::get_instance();
-        $this->items = new Membershiping_Inventory_Items();
+        
+        // Get items instance from main plugin if available, otherwise create new one
+        $main_plugin = membershiping_inventory();
+        if ($main_plugin && isset($main_plugin->items)) {
+            $this->items = $main_plugin->items;
+            error_log('Membershiping Inventory Flag Awards: Using main plugin items instance');
+        } else {
+            $this->items = new Membershiping_Inventory_Items();
+            error_log('Membershiping Inventory Flag Awards: Created new items instance');
+        }
         
         $this->init_hooks();
         
@@ -930,6 +944,12 @@ class Membershiping_Inventory_Flag_Awards {
      * Add product meta boxes
      */
     public function add_product_meta_boxes() {
+        // Prevent duplicate meta box registration
+        if (self::$meta_boxes_added) {
+            error_log('Membershiping Inventory Flag Awards: Meta boxes already added, skipping');
+            return;
+        }
+        
         error_log('Membershiping Inventory Flag Awards: add_product_meta_boxes called');
         add_meta_box(
             'membershiping_inventory_product',
@@ -939,6 +959,8 @@ class Membershiping_Inventory_Flag_Awards {
             'normal',
             'default'
         );
+        
+        self::$meta_boxes_added = true; // Mark as added
         error_log('Membershiping Inventory Flag Awards: Meta box added for product post type');
     }
     
@@ -957,7 +979,22 @@ class Membershiping_Inventory_Flag_Awards {
         $exclude_from_shop = get_post_meta($post->ID, '_membershiping_exclude_from_shop', true);
         
         // Get available inventory items
+        error_log('Membershiping Inventory Flag Awards: Attempting to get items...');
+        error_log('Membershiping Inventory Flag Awards: Items object exists: ' . (isset($this->items) ? 'YES' : 'NO'));
+        if (isset($this->items)) {
+            error_log('Membershiping Inventory Flag Awards: Items class: ' . get_class($this->items));
+        }
         $available_items = $this->items->get_all_items();
+        error_log('Membershiping Inventory Flag Awards: Retrieved ' . count($available_items) . ' items');
+        
+        // Debug the actual items data
+        if (!empty($available_items)) {
+            foreach ($available_items as $item) {
+                error_log('Membershiping Inventory Flag Awards: Item - ID: ' . $item->id . ', Name: ' . $item->name . ', Type: ' . $item->item_type);
+            }
+        } else {
+            error_log('Membershiping Inventory Flag Awards: No items returned from database');
+        }
         
         ?>
         <table class="form-table">
@@ -980,6 +1017,7 @@ class Membershiping_Inventory_Flag_Awards {
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <!-- Debug: <?php echo count($available_items); ?> items loaded -->
                     <span class="description"><?php _e('Choose which inventory item this product represents', 'membershiping-inventory'); ?></span>
                 </td>
             </tr>

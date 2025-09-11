@@ -270,11 +270,14 @@ class Membershiping_Inventory_Main {
      */
     public function initialize_if_dependencies_met() {
         error_log('Membershiping Inventory: initialize_if_dependencies_met called');
-        // Prevent multiple initializations
+        // Prevent multiple initializations - CHECK EARLY
         if (self::$initialized) {
             error_log('Membershiping Inventory: Already initialized, skipping');
             return;
         }
+        
+        // Set flag immediately to prevent race conditions
+        self::$initialized = true;
         
         if ($this->check_dependencies()) {
             error_log('Membershiping Inventory: Dependencies met, initializing components...');
@@ -293,9 +296,9 @@ class Membershiping_Inventory_Main {
     public function initialize_components() {
         error_log('Membershiping Inventory: initialize_components() started');
         
-        // Additional safety check for duplicate initialization
-        if (self::$initialized) {
-            error_log('Membershiping Inventory: Already initialized, exiting initialize_components');
+        // Additional safety check for duplicate initialization (but flag was already set)
+        if (isset($this->database)) {
+            error_log('Membershiping Inventory: Components already initialized, exiting initialize_components');
             return;
         }
         
@@ -358,8 +361,12 @@ class Membershiping_Inventory_Main {
         error_log('Membershiping Inventory: Trading initialized');
         
         error_log('Membershiping Inventory: Initializing flag awards...');
-        $this->flag_awards = new Membershiping_Inventory_Flag_Awards();
-        error_log('Membershiping Inventory: Flag awards initialized');
+        if (!isset($this->flag_awards)) {
+            $this->flag_awards = new Membershiping_Inventory_Flag_Awards();
+            error_log('Membershiping Inventory: Flag awards initialized');
+        } else {
+            error_log('Membershiping Inventory: Flag awards already initialized, skipping');
+        }
         
         error_log('Membershiping Inventory: Initializing consumables...');
         $this->consumables = new Membershiping_Inventory_Consumables();
@@ -392,12 +399,10 @@ class Membershiping_Inventory_Main {
         // Hook into core plugin actions
         $this->init_core_hooks();
         
-        // Set initialization flag at the very end
-        self::$initialized = true;
-        error_log('Membershiping Inventory: Full initialization completed successfully');
-        
         // Trigger initialization complete action
         do_action('membershiping_inventory_loaded');
+        
+        error_log('Membershiping Inventory: Full initialization completed successfully');
     }
 
     /**
@@ -748,7 +753,11 @@ class Membershiping_Inventory_Main {
  * Get main plugin instance
  */
 function membershiping_inventory() {
-    return Membershiping_Inventory_Main::get_instance();
+    static $instance = null;
+    if ($instance === null) {
+        $instance = Membershiping_Inventory_Main::get_instance();
+    }
+    return $instance;
 }
 
 // Initialize plugin

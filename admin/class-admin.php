@@ -17,6 +17,11 @@ if (!defined('ABSPATH')) {
 class Membershiping_Inventory_Admin {
     
     /**
+     * Track if admin menus were already added
+     */
+    private static $menus_added = false;
+    
+    /**
      * Constructor
      */
     public function __construct() {
@@ -51,6 +56,12 @@ class Membershiping_Inventory_Admin {
      * Add admin menus
      */
     public function add_admin_menus() {
+        // Prevent duplicate menu registration
+        if (self::$menus_added) {
+            error_log('Membershiping Inventory: Admin menus already added, skipping');
+            return;
+        }
+        
         // Debug logging
         error_log('Membershiping Inventory: Adding admin menus...');
         error_log('Membershiping Inventory: Current user can manage_options: ' . (current_user_can('manage_options') ? 'YES' : 'NO'));
@@ -68,6 +79,7 @@ class Membershiping_Inventory_Admin {
         
         if ($menu_page) {
             error_log('Membershiping Inventory: Main menu page added successfully');
+            self::$menus_added = true; // Mark as added
         } else {
             error_log('Membershiping Inventory: Failed to add main menu page');
         }

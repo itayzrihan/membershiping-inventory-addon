@@ -238,7 +238,7 @@ class Membershiping_Inventory_WooCommerce_Integration {
      * Add product restriction fields to admin
      */
     public function add_product_restriction_fields() {
-        global $post;
+        global $post, $wpdb;
         
         echo '<div class="options_group">';
         echo '<h3>' . __('Membershiping Inventory Integration', 'membershiping-inventory') . '</h3>';
@@ -281,16 +281,12 @@ class Membershiping_Inventory_WooCommerce_Integration {
             }
         }
         
-        // Get all available items (products)
-        global $wpdb;
-        $available_items = $wpdb->get_results("
-            SELECT ID, post_title
-            FROM {$wpdb->posts}
-            WHERE post_type = 'product'
-            AND post_status = 'publish'
-            AND ID != {$post->ID}
-            ORDER BY post_title
-        ");
+        // Get all available items (inventory items, not products)
+        $items_class = new Membershiping_Inventory_Items();
+        $available_items = $items_class->get_all_items();
+        
+        // Debug log
+        error_log('WooCommerce Integration: Retrieved ' . count($available_items) . ' inventory items for awards dropdown');
         
         echo '<div class="item-awards-container">';
         
@@ -430,8 +426,8 @@ class Membershiping_Inventory_WooCommerce_Integration {
         echo '<option value="">' . __('Select an item...', 'membershiping-inventory') . '</option>';
         
         foreach ($available_items as $item) {
-            $selected = isset($award['item_id']) && $award['item_id'] == $item->ID ? 'selected' : '';
-            echo '<option value="' . $item->ID . '" ' . $selected . '>' . esc_html($item->post_title) . '</option>';
+            $selected = isset($award['item_id']) && $award['item_id'] == $item->id ? 'selected' : '';
+            echo '<option value="' . $item->id . '" ' . $selected . '>' . esc_html($item->name . ' (' . ucfirst($item->item_type) . ')') . '</option>';
         }
         
         echo '</select>';
@@ -480,7 +476,7 @@ class Membershiping_Inventory_WooCommerce_Integration {
         echo '<option value="">' . __('Select an item...', 'membershiping-inventory') . '</option>';
         
         foreach ($available_items as $item) {
-            echo '<option value="' . $item->ID . '">' . esc_html($item->post_title) . '</option>';
+            echo '<option value="' . $item->id . '">' . esc_html($item->name . ' (' . ucfirst($item->item_type) . ')') . '</option>';
         }
         
         echo '</select>';
